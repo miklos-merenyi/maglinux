@@ -1,0 +1,22 @@
+#!/bin/sh
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case $1 in prereqs) prereqs; exit 0;; esac
+
+mkdir -p /mnt/host
+# Wait briefly for SD/USB block device enumeration
+sleep 2
+
+# Find the vfat partition containing rootfs.btrfs
+for dev in /dev/sd* /dev/mmcblk* /dev/vd*; do
+    [ -b "$dev" ] || continue
+    if mount -t vfat -o ro "$dev" /mnt/host 2>/dev/null; then
+        if [ -f /mnt/host/rootfs.btrfs ]; then
+            # Remount rw if you want persistent changes on the Btrfs image
+            mount -o remount,rw /mnt/host
+            losetup /dev/loop0 /mnt/host/rootfs.btrfs
+            break
+        fi
+        umount /mnt/host
+    fi
+done
