@@ -8,6 +8,12 @@ fi
 
 IMG_NAME="sdcard-8g.img"
 BTRFS_IMG="rootfs.btrfs"
+
+# System identity / credentials
+HOSTNAME_NEW="maglinux"
+USER_NAME="maguser"
+USER_PASS="maguser"
+ROOT_PASS="magroot"
 WORK_DIR="./build"
 mkdir -p "$WORK_DIR"
 WORK_DIR="$(realpath "$WORK_DIR")"
@@ -83,10 +89,23 @@ cp -r "$(dirname "$(realpath "$0")")/../overlay/." "$WORK_DIR/rootfs/"
 find "$WORK_DIR/rootfs/etc/initramfs-tools/hooks" "$WORK_DIR/rootfs/etc/initramfs-tools/scripts" \
     -type f ! -name ORDER -exec chmod 755 {} +
 echo "/dev/loop0 / btrfs defaults,compress=zstd:3,noatime 0 1" > "$WORK_DIR/rootfs/etc/fstab"
-echo "debian-i386" > "$WORK_DIR/rootfs/etc/hostname"
+echo "$HOSTNAME_NEW" > "$WORK_DIR/rootfs/etc/hostname"
+cat > "$WORK_DIR/rootfs/etc/hosts" <<HOSTS
+127.0.0.1	localhost
+127.0.1.1	$HOSTNAME_NEW
+::1		localhost ip6-localhost ip6-loopback
+ff02::1		ip6-allnodes
+ff02::2		ip6-allrouters
+HOSTS
 
-# Set root password to 'root' for testing
-chroot "$WORK_DIR/rootfs" bash -c "echo 'root:root' | chpasswd"
+# Root password and default user
+chroot "$WORK_DIR/rootfs" useradd -m -s /bin/bash "$USER_NAME"
+for g in audio video plugdev netdev users; do
+    if chroot "$WORK_DIR/rootfs" getent group "$g" >/dev/null; then
+        chroot "$WORK_DIR/rootfs" usermod -aG "$g" "$USER_NAME"
+    fi
+done
+printf '%s\n' "root:$ROOT_PASS" "$USER_NAME:$USER_PASS" | chroot "$WORK_DIR/rootfs" chpasswd
 chroot "$WORK_DIR/rootfs" update-initramfs -u
 
 # 3. Create compressed Btrfs image (6GB max capacity, sparse file)
@@ -100,6 +119,7 @@ safe_umount "$WORK_DIR/mnt_btrfs"
 
 # 4. Build the 8GB vfat SD card image
 truncate -s 7500M "$WORK_DIR/$IMG_NAME" # Slightly under 8GB to fit any 8GB SD card
+sudo chmod 666 "$WORK_DIR/$IMG_NAME"
 parted -s "$WORK_DIR/$IMG_NAME" mklabel msdos
 parted -s "$WORK_DIR/$IMG_NAME" mkpart primary fat32 1MiB 100%
 parted -s "$WORK_DIR/$IMG_NAME" set 1 boot on
