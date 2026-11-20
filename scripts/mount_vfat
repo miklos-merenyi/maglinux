@@ -1,5 +1,31 @@
 #!/bin/sh
-LOOP=$(sudo losetup -f -P -r --show build/sdcard-8g.img)   # e.g. /dev/loop0
-sudo mkdir -p /mnt/sdcard
-sudo mount -o ro ${LOOP}p1 /mnt/sdcard
-ls -l /mnt/sdcard
+# Mount the SD card image's FAT partition read-only at /mnt/sdcard for inspection.
+#   scripts/mount_vfat      mount
+#   scripts/mount_vfat -u   unmount and detach the loop device
+set -e
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+IMG="$REPO/build/sdcard-8g.img"
+MNT=/mnt/sdcard
+
+# Loop devices currently backed by the image
+loops() { losetup -j "$IMG" | cut -d: -f1; }
+
+if [ "${1:-}" = "-u" ]; then
+    if mountpoint -q "$MNT"; then sudo umount "$MNT"; fi
+    for dev in $(loops); do sudo losetup -d "$dev"; done
+    echo "Unmounted $MNT"
+    exit 0
+fi
+
+[ -f "$IMG" ] || { echo "Image not found: $IMG" >&2; exit 1; }
+if mountpoint -q "$MNT"; then
+    echo "$MNT is already mounted (use: $0 -u)" >&2
+    exit 1
+fi
+
+LOOP=$(sudo losetup -f -P -r --show "$IMG")
+sudo udevadm settle
+sudo mkdir -p "$MNT"
+sudo mount -o ro "${LOOP}p1" "$MNT" || { sudo losetup -d "$LOOP"; exit 1; }
+echo "Mounted ${LOOP}p1 at $MNT (unmount with: $0 -u)"
+ls -l "$MNT"

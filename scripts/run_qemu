@@ -1,6 +1,16 @@
-   qemu-system-i386 \
-       -enable-kvm \
-       -m 1024 \
-       -drive file=build/sdcard-8g.img,format=raw,if=ide \
-       -netdev user,id=net0,hostfwd=tcp::5901-:5901 \
-       -device e1000,netdev=net0 
+#!/bin/sh
+# Boot the SD card image in QEMU. VNC of the guest is forwarded to localhost:5901.
+# Extra arguments are passed to QEMU, e.g.:  scripts/run_qemu -snapshot
+set -e
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+IMG="$REPO/build/sdcard-8g.img"
+
+[ -f "$IMG" ] || { echo "Image not found: $IMG (run sudo scripts/build.sh first)" >&2; exit 1; }
+
+exec qemu-system-i386 \
+    -enable-kvm \
+    -m 1024 \
+    -drive file="$IMG",format=raw,if=ide \
+    -netdev user,id=net0,hostfwd=tcp::5901-:5901 \
+    -device e1000,netdev=net0 \
+    "$@"
