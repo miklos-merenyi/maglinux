@@ -1,0 +1,11 @@
+# TigerVNC / X session logs of all users (~/.vnc/<host>:<display>.log)
+/home/*/.vnc/*.log {
+    weekly
+    maxsize 1M
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

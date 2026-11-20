@@ -81,7 +81,7 @@ sudo rm -rf "$WORK_DIR/rootfs" "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/$IMG_NAME"
 mmdebstrap --arch=i386 --variant=minbase \
     --aptopt='Apt::Install-Recommends "false";' \
     --aptopt='Acquire::http::Proxy "http://127.0.0.1:3142";' \
-    --include="linux-image-686-pae,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd" \
+    --include="linux-image-686-pae,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd,logrotate,sudo" \
     bookworm "$WORK_DIR/rootfs" http://deb.debian.org/debian
 
 # 2. Apply Git-tracked overlays & configure fstab
@@ -101,7 +101,7 @@ HOSTS
 
 # Root password and default user
 chroot "$WORK_DIR/rootfs" useradd -m -s /bin/bash "$USER_NAME"
-for g in audio video plugdev netdev users; do
+for g in sudo audio video plugdev netdev users; do
     if chroot "$WORK_DIR/rootfs" getent group "$g" >/dev/null; then
         chroot "$WORK_DIR/rootfs" usermod -aG "$g" "$USER_NAME"
     fi
