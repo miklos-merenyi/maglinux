@@ -5,5 +5,5 @@ case $1 in prereqs) prereqs; exit 0;; esac
 
 . /usr/share/initramfs-tools/hook-functions
 
-manual_add_modules vfat nls_cp437 nls_ascii loop btrfs zstd_compress zstd_decompress
+manual_add_modules vfat fat nls_cp437 nls_ascii nls_iso8859-1 loop btrfs zstd_compress zstd_decompress
 copy_exec /sbin/losetup /sbin
