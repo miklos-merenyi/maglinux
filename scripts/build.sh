@@ -13,6 +13,7 @@ BTRFS_IMG="rootfs.btrfs"
 HOSTNAME_NEW="maglinux"
 USER_NAME="maguser"
 USER_PASS="maguser"
+VNC_PASS="maguser"
 ROOT_PASS="magroot"
 WORK_DIR="./build"
 mkdir -p "$WORK_DIR"
@@ -80,7 +81,7 @@ sudo rm -rf "$WORK_DIR/rootfs" "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/$IMG_NAME"
 mmdebstrap --arch=i386 --variant=minbase \
     --aptopt='Apt::Install-Recommends "false";' \
     --aptopt='Acquire::http::Proxy "http://127.0.0.1:3142";' \
-    --include="linux-image-686-pae,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server" \
+    --include="linux-image-686-pae,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd" \
     bookworm "$WORK_DIR/rootfs" http://deb.debian.org/debian
 
 # 2. Apply Git-tracked overlays & configure fstab
@@ -106,6 +107,24 @@ for g in audio video plugdev netdev users; do
     fi
 done
 printf '%s\n' "root:$ROOT_PASS" "$USER_NAME:$USER_PASS" | chroot "$WORK_DIR/rootfs" chpasswd
+
+# VNC password for the default user (~/.vnc/passwd, used by vncserver)
+chroot "$WORK_DIR/rootfs" install -d -m 700 -o "$USER_NAME" -g "$USER_NAME" "/home/$USER_NAME/.vnc"
+printf '%s\n' "$VNC_PASS" | chroot "$WORK_DIR/rootfs" vncpasswd -f > "$WORK_DIR/rootfs/home/$USER_NAME/.vnc/passwd"
+chroot "$WORK_DIR/rootfs" chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.vnc/passwd"
+chmod 600 "$WORK_DIR/rootfs/home/$USER_NAME/.vnc/passwd"
+
+# Autostart VNC server on display :1 (port 5901) for the default user, reachable from the network
+echo ":1=$USER_NAME" > "$WORK_DIR/rootfs/etc/tigervnc/vncserver.users"
+cat >> "$WORK_DIR/rootfs/etc/tigervnc/vncserver-config-defaults" <<'VNCCFG'
+
+# maglinux: accept connections from the network, default desktop size
+$localhost = "no";
+$geometry = "1280x800";
+1;
+VNCCFG
+chroot "$WORK_DIR/rootfs" systemctl enable 'tigervncserver@:1.service'
+
 chroot "$WORK_DIR/rootfs" update-initramfs -u
 
 # 3. Create compressed Btrfs image (6GB max capacity, sparse file)
