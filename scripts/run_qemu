@@ -1,0 +1,6 @@
+   qemu-system-i386 \
+       -enable-kvm \
+       -m 1024 \
+       -drive file=build/sdcard-8g.img,format=raw,if=ide \
+       -netdev user,id=net0,hostfwd=tcp::5901-:5901 \
+       -device e1000,netdev=net0 

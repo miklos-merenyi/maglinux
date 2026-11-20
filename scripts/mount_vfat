@@ -1,0 +1,5 @@
+#!/bin/sh
+LOOP=$(sudo losetup -f -P -r --show build/sdcard-8g.img)   # e.g. /dev/loop0
+sudo mkdir -p /mnt/sdcard
+sudo mount -o ro ${LOOP}p1 /mnt/sdcard
+ls -l /mnt/sdcard
