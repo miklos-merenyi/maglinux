@@ -20,6 +20,7 @@ sudo apt install -y \
     syslinux-common \
     parted \
     kpartx \
+    squashfs-tools \
     qemu-system-x86 \
     apt-cacher-ng \
     git \

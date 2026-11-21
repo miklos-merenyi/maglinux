@@ -6,6 +6,10 @@ set -eEuo pipefail
 # sudo passes LANG/LANGUAGE/LC_* through, so this also reaches the chroot.
 export LC_ALL=C LANG=C LANGUAGE=
 
+# Running as a normal user: Debian leaves the sbin dirs out of a user's PATH, but
+# tools run without sudo (mkfs.btrfs, parted, depmod, ...) live there.
+export PATH="$PATH:/usr/local/sbin:/usr/sbin:/sbin"
+
 # Run as a normal user: privileged steps use sudo. Ask for the password once up front
 # and keep the sudo timestamp fresh, so the long bootstrap step does not prompt again.
 sudo -v
