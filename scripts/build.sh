@@ -81,7 +81,7 @@ on_error() {
     echo "ERROR: command failed at line $1: $2" >&2
 }
 
-# Alpine rescue system (build_rescue)
+# Rescue system (build_rescue)
 # shellcheck source=scripts/rescue.sh
 . "$(dirname "$(realpath "$0")")/rescue.sh"
 
@@ -93,10 +93,10 @@ trap 'on_error $LINENO "$BASH_COMMAND"' ERR
 sudo rm -rf "$WORK_DIR/rootfs" "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/$IMG_NAME"
 
 # 1. Bootstrap Debian 12 i386
-sudo mmdebstrap --arch=i386 --variant=minbase \
+sudo mmdebstrap --arch=i386 --variant=minbase --components=main,non-free-firmware \
     --aptopt='Apt::Install-Recommends "false";' \
     --aptopt='Acquire::http::Proxy "http://127.0.0.1:3142";' \
-    --include="linux-image-686-pae,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd,logrotate,sudo" \
+    --include="linux-image-686,firmware-realtek,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd,logrotate,sudo" \
     bookworm "$WORK_DIR/rootfs" http://deb.debian.org/debian
 
 # 2. Apply Git-tracked overlays & configure fstab
@@ -151,7 +151,7 @@ sudo mount -o loop,compress=zstd:3 "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/mnt_btrfs"
 sudo cp -a "$WORK_DIR/rootfs/." "$WORK_DIR/mnt_btrfs/"
 safe_umount "$WORK_DIR/mnt_btrfs"
 
-# 4. Alpine rescue system -> $WORK_DIR/rescue/{vmlinuz,initramfs.gz,rescue.sqfs}
+# 4. Debian rescue system -> $WORK_DIR/rescue/{initramfs.gz,rescue.sqfs}
 build_rescue
 
 # 5. Build the 8GB vfat SD card image
@@ -183,8 +183,7 @@ sudo cp "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/mnt_fat/"
 
 # Rescue system and boot menu (menu modules must match the installed syslinux version)
 sudo mkdir -p "$WORK_DIR/mnt_fat/rescue"
-sudo cp "$WORK_DIR/rescue/vmlinuz" "$WORK_DIR/rescue/initramfs.gz" "$WORK_DIR/rescue/rescue.sqfs" \
-    "$WORK_DIR/mnt_fat/rescue/"
+sudo cp "$WORK_DIR/rescue/initramfs.gz" "$WORK_DIR/rescue/rescue.sqfs" "$WORK_DIR/mnt_fat/rescue/"
 sudo cp /usr/lib/syslinux/modules/bios/menu.c32 /usr/lib/syslinux/modules/bios/libutil.c32 \
     "$WORK_DIR/mnt_fat/"
 
@@ -201,8 +200,8 @@ LABEL linux
     APPEND initrd=/initrd.img root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw
 
 LABEL rescue
-    MENU LABEL Rescue system (Alpine, read-only, root autologin)
-    KERNEL /rescue/vmlinuz
+    MENU LABEL Rescue system (read-only, root autologin)
+    KERNEL /vmlinuz
     APPEND initrd=/rescue/initramfs.gz console=ttyS0,115200 console=tty0
 EOF
 

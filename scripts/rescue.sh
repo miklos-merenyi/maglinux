@@ -1,22 +1,18 @@
 # shellcheck shell=bash
-# Build the Alpine Linux (x86) rescue system. Sourced by build.sh, which provides
+# Build the Debian 12 (i386) rescue system. Sourced by build.sh, which provides
 # WORK_DIR, safe_umount and the cleanup/trap handling.
 #
+# The rescue system boots the main system's kernel (/vmlinuz on the FAT partition),
+# so its kernel modules are copied from the main rootfs ($WORK_DIR/rootfs).
+#
 # Produces in $WORK_DIR/rescue/:
-#   vmlinuz         Alpine linux-lts kernel
 #   initramfs.gz    busybox initramfs (rescue/init) that mounts rescue.sqfs
-#   rescue.sqfs     read-only Alpine root filesystem (OpenRC, sshd)
-
-ALPINE_VER="3.24.4"
-ALPINE_BRANCH="v${ALPINE_VER%.*}"
-ALPINE_MIRROR="https://dl-cdn.alpinelinux.org/alpine"
-ALPINE_MINIROOTFS="alpine-minirootfs-${ALPINE_VER}-x86.tar.gz"
-ALPINE_MINIROOTFS_SHA256="df793865bf166c10acaad3a4d5d40498f9ee3f89fa405d39c7f540464fb3b0c1"
+#   rescue.sqfs     read-only Debian root filesystem (systemd, sshd)
 
 RESCUE_HOSTNAME="maglinux-rescue"
 RESCUE_ROOT_PASS="magroot"
-RESCUE_PACKAGES="alpine-base openssh linux-lts linux-firmware-none busybox-static \
-btrfs-progs dosfstools e2fsprogs lsblk util-linux-misc"
+RESCUE_PACKAGES="systemd-sysv,udev,kmod,systemd-resolved,openssh-server,busybox-static,\
+firmware-realtek,btrfs-progs,dosfstools,e2fsprogs,fdisk,iproute2,iputils-ping,procps,less,nano"
 
 # Modules the initramfs needs to find and mount the boot medium
 RESCUE_INITRAMFS_MODULES="kernel/drivers/ata/ kernel/drivers/scsi/ kernel/drivers/usb/host/ \
@@ -29,54 +25,40 @@ build_rescue() {
     local out="$WORK_DIR/rescue"
     local root="$WORK_DIR/rescue-root"
     local initrd="$WORK_DIR/rescue-initramfs"
-    local cache="$WORK_DIR/cache"
+    local main="$WORK_DIR/rootfs"
 
-    echo "=== Rescue system: Alpine $ALPINE_VER x86"
+    echo "=== Rescue system: Debian 12 i386"
     sudo rm -rf "$root" "$initrd" "$out"
-    mkdir -p "$out" "$cache/apk"
+    mkdir -p "$out"
 
-    # 1. Alpine minirootfs (cached, checksum verified)
-    if ! echo "$ALPINE_MINIROOTFS_SHA256  $cache/$ALPINE_MINIROOTFS" | sha256sum -c --quiet >/dev/null 2>&1; then
-        curl -fL --retry 3 -o "$cache/$ALPINE_MINIROOTFS" \
-            "$ALPINE_MIRROR/$ALPINE_BRANCH/releases/x86/$ALPINE_MINIROOTFS"
-        echo "$ALPINE_MINIROOTFS_SHA256  $cache/$ALPINE_MINIROOTFS" | sha256sum -c --quiet
-    fi
-    sudo mkdir -p "$root"
-    sudo tar -xzf "$cache/$ALPINE_MINIROOTFS" -C "$root"
+    # 1. Minimal Debian root filesystem
+    sudo mmdebstrap --arch=i386 --variant=minbase --components=main,non-free-firmware \
+        --aptopt='Apt::Install-Recommends "false";' \
+        --aptopt='Acquire::http::Proxy "http://127.0.0.1:3142";' \
+        --include="$RESCUE_PACKAGES" \
+        bookworm "$root" http://deb.debian.org/debian
 
-    # 2. Install packages inside the chroot (apk verifies package signatures itself)
-    printf '%s\n' "$ALPINE_MIRROR/$ALPINE_BRANCH/main" "$ALPINE_MIRROR/$ALPINE_BRANCH/community" |
-        sudo tee "$root/etc/apk/repositories" >/dev/null
-    sudo cp -L /etc/resolv.conf "$root/etc/resolv.conf"
-    # The rescue initramfs is our own; don't let the kernel package run mkinitfs
-    sudo mkdir -p "$root/etc/mkinitfs"
-    echo 'disable_trigger="yes"' | sudo tee "$root/etc/mkinitfs/mkinitfs.conf" >/dev/null
-    sudo mkdir -p "$root/var/cache/apk"
-    sudo mount --bind "$cache/apk" "$root/var/cache/apk"
-    for d in proc sys dev; do sudo mount --rbind "/$d" "$root/$d"; sudo mount --make-rslave "$root/$d"; done
-    # shellcheck disable=SC2086
-    sudo chroot "$root" /sbin/apk add --cache-dir /var/cache/apk $RESCUE_PACKAGES
-    for d in dev sys proc var/cache/apk; do safe_umount "$root/$d"; done
+    # Kernel modules of the shared kernel
+    local kver; kver="$(ls "$main/lib/modules")"
+    sudo mkdir -p "$root/lib/modules"
+    sudo cp -a "$main/lib/modules/$kver" "$root/lib/modules/"
 
-    # 3. Configure
+    # 2. Configure
     # copied by root without preserving ownership -> files end up root-owned
     sudo cp -R --preserve=mode,timestamps "$repo/rescue/overlay/." "$root/"
     echo "$RESCUE_HOSTNAME" | sudo tee "$root/etc/hostname" >/dev/null
-    printf '127.0.0.1\tlocalhost %s\n::1\t\tlocalhost\n' "$RESCUE_HOSTNAME" | sudo tee "$root/etc/hosts" >/dev/null
+    printf '127.0.0.1\tlocalhost\n127.0.1.1\t%s\n::1\t\tlocalhost ip6-localhost ip6-loopback\n' \
+        "$RESCUE_HOSTNAME" | sudo tee "$root/etc/hosts" >/dev/null
+    : | sudo tee "$root/etc/fstab" >/dev/null
     echo "root:$RESCUE_ROOT_PASS" | sudo chroot "$root" chpasswd
-    sudo rm -f "$root/etc/resolv.conf"
-    local svc
-    for svc in devfs dmesg mdev hwdrivers sysfs; do sudo chroot "$root" rc-update -q add "$svc" sysinit; done
-    for svc in modules sysctl hostname bootmisc syslog networking; do sudo chroot "$root" rc-update -q add "$svc" boot; done
-    for svc in sshd; do sudo chroot "$root" rc-update -q add "$svc" default; done
-    for svc in mount-ro killprocs; do sudo chroot "$root" rc-update -q add "$svc" shutdown; done
+    sudo chroot "$root" systemctl enable -q systemd-networkd systemd-resolved
+    # Per-boot identity: no baked-in machine-id or ssh host keys
+    : | sudo tee "$root/etc/machine-id" >/dev/null
+    sudo rm -f "$root"/etc/ssh/ssh_host_*
 
-    local kver; kver="$(ls "$root/lib/modules")"
-    sudo cp "$root/boot/vmlinuz-lts" "$out/vmlinuz"
-
-    # 4. Initramfs: static busybox + rescue/init + boot-medium drivers (with dependencies)
+    # 3. Initramfs: static busybox + rescue/init + boot-medium drivers (with dependencies)
     mkdir -p "$initrd/bin" "$initrd/lib/modules/$kver"
-    cp "$root/bin/busybox.static" "$initrd/bin/busybox"
+    cp "$root/bin/busybox" "$initrd/bin/busybox"
     install -m 755 "$repo/rescue/init" "$initrd/init"
     local mdir="$root/lib/modules/$kver"
     local prefixes; prefixes="$(echo $RESCUE_INITRAMFS_MODULES | tr ' ' '|')"
@@ -86,15 +68,14 @@ build_rescue() {
     done
     cp "$mdir"/modules.order "$mdir"/modules.builtin* "$initrd/lib/modules/$kver/"
     # busybox modprobe: use uncompressed modules
-    find "$initrd/lib/modules" -name '*.ko.gz' -exec gunzip {} +
     find "$initrd/lib/modules" -name '*.ko.xz' -exec unxz {} +
     find "$initrd/lib/modules" -name '*.ko.zst' -exec zstd -q -d --rm {} +
     depmod -b "$initrd" "$kver"
     (cd "$initrd" && find . | cpio -o -H newc --quiet | gzip -9) > "$out/initramfs.gz"
 
-    # 5. Read-only root filesystem (kernel lives on the FAT partition, not needed inside)
+    # 4. Read-only root filesystem (kernel lives on the FAT partition; drop apt caches)
     sudo mksquashfs "$root" "$out/rescue.sqfs" -noappend -comp xz -quiet \
-        -e boot var/cache/apk
+        -e boot var/cache/apt/archives var/lib/apt/lists
     sudo chown "$(id -u):$(id -g)" "$out"/*
     ls -lh "$out"
 }

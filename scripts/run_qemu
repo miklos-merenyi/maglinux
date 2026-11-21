@@ -13,4 +13,5 @@ exec qemu-system-i386 \
     -drive file="$IMG",format=raw,if=ide \
     -netdev user,id=net0,hostfwd=tcp::5901-:5901 \
     -device e1000,netdev=net0 \
+    -cpu "pentium3,pae=off,pse36=off" \
     "$@"

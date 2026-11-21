@@ -1,5 +1,5 @@
 
- maglinux RESCUE system (Alpine Linux, read-only squashfs + RAM overlay)
+ maglinux RESCUE system (Debian 12, read-only squashfs + RAM overlay)
  All changes are lost on reboot.
 
  Boot partition (read-only):  /media/sdcard
