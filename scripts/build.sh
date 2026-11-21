@@ -96,7 +96,7 @@ sudo rm -rf "$WORK_DIR/rootfs" "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/$IMG_NAME"
 sudo mmdebstrap --arch=i386 --variant=minbase --components=main,non-free-firmware \
     --aptopt='Apt::Install-Recommends "false";' \
     --aptopt='Acquire::http::Proxy "http://127.0.0.1:3142";' \
-    --include="linux-image-686,firmware-realtek,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd,logrotate,sudo" \
+    --include="linux-image-686,firmware-realtek,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd,logrotate,sudo,xserver-xorg-core,xserver-xorg-video-vesa,xserver-xorg-video-fbdev,xserver-xorg-input-libinput,lightdm,lightdm-gtk-greeter" \
     bookworm "$WORK_DIR/rootfs" http://deb.debian.org/debian
 
 # 2. Apply Git-tracked overlays & configure fstab
@@ -122,6 +122,20 @@ for g in sudo audio video plugdev netdev users; do
     fi
 done
 printf '%s\n' "root:$ROOT_PASS" "$USER_NAME:$USER_PASS" | sudo chroot "$WORK_DIR/rootfs" chpasswd
+
+# Passwordless sudo for the default user (validated, a broken sudoers file fails the build)
+echo "$USER_NAME ALL=(ALL:ALL) NOPASSWD: ALL" | sudo tee "$WORK_DIR/rootfs/etc/sudoers.d/$USER_NAME" >/dev/null
+sudo chmod 440 "$WORK_DIR/rootfs/etc/sudoers.d/$USER_NAME"
+sudo chroot "$WORK_DIR/rootfs" visudo -c -q
+
+# Local X: LightDM logs the default user into XFCE automatically
+sudo mkdir -p "$WORK_DIR/rootfs/etc/lightdm/lightdm.conf.d"
+sudo tee "$WORK_DIR/rootfs/etc/lightdm/lightdm.conf.d/50-autologin.conf" >/dev/null <<LIGHTDM
+[Seat:*]
+autologin-user=$USER_NAME
+autologin-user-timeout=0
+autologin-session=xfce
+LIGHTDM
 
 # VNC password for the default user (~/.vnc/passwd, used by vncserver)
 sudo chroot "$WORK_DIR/rootfs" install -d -m 700 -o "$USER_NAME" -g "$USER_NAME" "/home/$USER_NAME/.vnc"
