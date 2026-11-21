@@ -32,11 +32,14 @@ build_rescue() {
     mkdir -p "$out"
 
     # 1. Minimal Debian root filesystem
-    sudo mmdebstrap --arch=i386 --variant=minbase --components=main,non-free-firmware \
+    sudo mmdebstrap --arch=i386 --variant=minbase \
         --aptopt='Apt::Install-Recommends "false";' \
         --aptopt='Acquire::http::Proxy "http://127.0.0.1:3142";' \
         --include="$RESCUE_PACKAGES" \
-        bookworm "$root" http://deb.debian.org/debian
+        bookworm "$root" "${DEBIAN_SOURCES[@]}"
+
+    # Build-host apt proxy must not end up in the image
+    sudo sed -i '/Acquire::http::Proxy/d' "$root/etc/apt/apt.conf.d/99mmdebstrap"
 
     # Kernel modules of the shared kernel
     local kver; kver="$(ls "$main/lib/modules")"

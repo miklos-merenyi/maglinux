@@ -21,6 +21,14 @@ USER_NAME="maguser"
 USER_PASS="maguser"
 VNC_PASS="maguser"
 ROOT_PASS="magroot"
+
+# APT sources for the built systems (also written to their /etc/apt/sources.list):
+# release + stable updates + security updates
+DEBIAN_SOURCES=(
+    "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm main non-free-firmware"
+    "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm-updates main non-free-firmware"
+    "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://security.debian.org/debian-security bookworm-security main non-free-firmware"
+)
 WORK_DIR="./build"
 mkdir -p "$WORK_DIR"
 WORK_DIR="$(realpath "$WORK_DIR")"
@@ -93,11 +101,15 @@ trap 'on_error $LINENO "$BASH_COMMAND"' ERR
 sudo rm -rf "$WORK_DIR/rootfs" "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/$IMG_NAME"
 
 # 1. Bootstrap Debian 12 i386
-sudo mmdebstrap --arch=i386 --variant=minbase --components=main,non-free-firmware \
+sudo mmdebstrap --arch=i386 --variant=minbase \
     --aptopt='Apt::Install-Recommends "false";' \
     --aptopt='Acquire::http::Proxy "http://127.0.0.1:3142";' \
     --include="linux-image-686,firmware-realtek,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd,logrotate,sudo,xserver-xorg-core,xserver-xorg-video-vesa,xserver-xorg-video-fbdev,xserver-xorg-input-libinput,lightdm,lightdm-gtk-greeter" \
-    bookworm "$WORK_DIR/rootfs" http://deb.debian.org/debian
+    bookworm "$WORK_DIR/rootfs" "${DEBIAN_SOURCES[@]}"
+
+# The apt proxy (apt-cacher-ng on the build host) is only reachable during the build;
+# mmdebstrap stores --aptopt settings in the target, so remove it there.
+sudo sed -i '/Acquire::http::Proxy/d' "$WORK_DIR/rootfs/etc/apt/apt.conf.d/99mmdebstrap"
 
 # 2. Apply Git-tracked overlays & configure fstab
 sudo cp -r "$(dirname "$(realpath "$0")")/../overlay/." "$WORK_DIR/rootfs/"
