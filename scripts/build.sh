@@ -1,10 +1,16 @@
 #!/bin/bash
 set -eEuo pipefail
 
-if [[ $EUID -ne 0 ]]; then
-    echo "Please run as root: sudo $0" >&2
-    exit 1
-fi
+# The host's locale (e.g. en_IE.UTF-8) does not exist inside the chroot; use C
+# so perl/apt/dpkg in the chroot don't print "Setting locale failed" warnings.
+# sudo passes LANG/LANGUAGE/LC_* through, so this also reaches the chroot.
+export LC_ALL=C LANG=C LANGUAGE=
+
+# Run as a normal user: privileged steps use sudo. Ask for the password once up front
+# and keep the sudo timestamp fresh, so the long bootstrap step does not prompt again.
+sudo -v
+( while sleep 50; do sudo -n -v 2>/dev/null || exit; done ) &
+SUDO_KEEPALIVE_PID=$!
 
 IMG_NAME="sdcard-8g.img"
 BTRFS_IMG="rootfs.btrfs"
@@ -18,20 +24,24 @@ ROOT_PASS="magroot"
 WORK_DIR="./build"
 mkdir -p "$WORK_DIR"
 WORK_DIR="$(realpath "$WORK_DIR")"
+# Images are created as the invoking user; make sure the work dir is ours
+# (older builds run entirely as root left it root-owned)
+sudo chown "$(id -u):$(id -g)" "$WORK_DIR"
 
 # Unmount a mountpoint (and anything mounted below it); fall back to lazy umount if busy
 safe_umount() {
     local m="$1"
     mountpoint -q "$m" 2>/dev/null || return 0
     sync
-    umount -R "$m" 2>/dev/null || { sleep 1; umount -R "$m" 2>/dev/null; } || {
+    sudo umount -R "$m" 2>/dev/null || { sleep 1; sudo umount -R "$m" 2>/dev/null; } || {
         echo "WARN: $m busy, using lazy unmount" >&2
-        umount -R -l "$m" || true
+        sudo umount -R -l "$m" || true
     }
 }
 
 # Tear down everything this (or a previous, failed) run may have left behind
 cleanup() {
+    local -   # keep the "set +e" below local to this function (restored on return)
     set +e
     # Anything mounted inside our work dir (mnt_fat, mnt_btrfs, rootfs/proc, ...)
     grep -F " $WORK_DIR/" /proc/mounts | awk '{print $2}' | sort -r | while read -r m; do
@@ -39,21 +49,21 @@ cleanup() {
     done
     # Loop devices backed by our images (also catches "(deleted)" image files)
     for f in "$IMG_NAME" "$BTRFS_IMG"; do
-        losetup -a | grep -F "$WORK_DIR/$f" | cut -d: -f1 | while read -r dev; do
-            kpartx -d "$dev" 2>/dev/null
+        sudo losetup -a | grep -F "$WORK_DIR/$f" | cut -d: -f1 | while read -r dev; do
+            sudo kpartx -d "$dev" 2>/dev/null
             for p in /dev/mapper/"$(basename "$dev")"p*; do
-                [[ -e $p ]] && dmsetup remove "$p" 2>/dev/null
+                [[ -e $p ]] && sudo dmsetup remove "$p" 2>/dev/null
             done
-            losetup -d "$dev" 2>/dev/null
+            sudo losetup -d "$dev" 2>/dev/null
         done
     done
     # Stale device-mapper partitions whose loop device is already gone
     for p in /dev/mapper/loop*p*; do
         [[ -e $p ]] || continue
         dev="/dev/$(basename "$p" | sed 's/p[0-9]*$//')"
-        losetup "$dev" >/dev/null 2>&1 || dmsetup remove "$p" 2>/dev/null
+        sudo losetup "$dev" >/dev/null 2>&1 || sudo dmsetup remove "$p" 2>/dev/null
     done
-    udevadm settle 2>/dev/null
+    sudo udevadm settle 2>/dev/null
     return 0
 }
 
@@ -61,6 +71,7 @@ on_exit() {
     local rc=$?
     trap - EXIT INT TERM ERR
     cleanup
+    kill "$SUDO_KEEPALIVE_PID" 2>/dev/null
     if [[ $rc -ne 0 ]]; then
         echo "Build FAILED (exit $rc) - mounts and loop devices have been cleaned up." >&2
     fi
@@ -78,20 +89,20 @@ trap 'on_error $LINENO "$BASH_COMMAND"' ERR
 sudo rm -rf "$WORK_DIR/rootfs" "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/$IMG_NAME"
 
 # 1. Bootstrap Debian 12 i386
-mmdebstrap --arch=i386 --variant=minbase \
+sudo mmdebstrap --arch=i386 --variant=minbase \
     --aptopt='Apt::Install-Recommends "false";' \
     --aptopt='Acquire::http::Proxy "http://127.0.0.1:3142";' \
     --include="linux-image-686-pae,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd,logrotate,sudo" \
     bookworm "$WORK_DIR/rootfs" http://deb.debian.org/debian
 
 # 2. Apply Git-tracked overlays & configure fstab
-cp -r "$(dirname "$(realpath "$0")")/../overlay/." "$WORK_DIR/rootfs/"
+sudo cp -r "$(dirname "$(realpath "$0")")/../overlay/." "$WORK_DIR/rootfs/"
 # initramfs-tools silently ignores hooks/scripts that are not executable
-find "$WORK_DIR/rootfs/etc/initramfs-tools/hooks" "$WORK_DIR/rootfs/etc/initramfs-tools/scripts" \
+sudo find "$WORK_DIR/rootfs/etc/initramfs-tools/hooks" "$WORK_DIR/rootfs/etc/initramfs-tools/scripts" \
     -type f ! -name ORDER -exec chmod 755 {} +
-echo "/dev/loop0 / btrfs defaults,compress=zstd:3,noatime 0 1" > "$WORK_DIR/rootfs/etc/fstab"
-echo "$HOSTNAME_NEW" > "$WORK_DIR/rootfs/etc/hostname"
-cat > "$WORK_DIR/rootfs/etc/hosts" <<HOSTS
+echo "/dev/loop0 / btrfs defaults,compress=zstd:3,noatime 0 1" | sudo tee "$WORK_DIR/rootfs/etc/fstab" >/dev/null
+echo "$HOSTNAME_NEW" | sudo tee "$WORK_DIR/rootfs/etc/hostname" >/dev/null
+sudo tee "$WORK_DIR/rootfs/etc/hosts" >/dev/null <<HOSTS
 127.0.0.1	localhost
 127.0.1.1	$HOSTNAME_NEW
 ::1		localhost ip6-localhost ip6-loopback
@@ -100,32 +111,32 @@ ff02::2		ip6-allrouters
 HOSTS
 
 # Root password and default user
-chroot "$WORK_DIR/rootfs" useradd -m -s /bin/bash "$USER_NAME"
+sudo chroot "$WORK_DIR/rootfs" useradd -m -s /bin/bash "$USER_NAME"
 for g in sudo audio video plugdev netdev users; do
-    if chroot "$WORK_DIR/rootfs" getent group "$g" >/dev/null; then
-        chroot "$WORK_DIR/rootfs" usermod -aG "$g" "$USER_NAME"
+    if sudo chroot "$WORK_DIR/rootfs" getent group "$g" >/dev/null; then
+        sudo chroot "$WORK_DIR/rootfs" usermod -aG "$g" "$USER_NAME"
     fi
 done
-printf '%s\n' "root:$ROOT_PASS" "$USER_NAME:$USER_PASS" | chroot "$WORK_DIR/rootfs" chpasswd
+printf '%s\n' "root:$ROOT_PASS" "$USER_NAME:$USER_PASS" | sudo chroot "$WORK_DIR/rootfs" chpasswd
 
 # VNC password for the default user (~/.vnc/passwd, used by vncserver)
-chroot "$WORK_DIR/rootfs" install -d -m 700 -o "$USER_NAME" -g "$USER_NAME" "/home/$USER_NAME/.vnc"
-printf '%s\n' "$VNC_PASS" | chroot "$WORK_DIR/rootfs" vncpasswd -f > "$WORK_DIR/rootfs/home/$USER_NAME/.vnc/passwd"
-chroot "$WORK_DIR/rootfs" chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.vnc/passwd"
-chmod 600 "$WORK_DIR/rootfs/home/$USER_NAME/.vnc/passwd"
+sudo chroot "$WORK_DIR/rootfs" install -d -m 700 -o "$USER_NAME" -g "$USER_NAME" "/home/$USER_NAME/.vnc"
+printf '%s\n' "$VNC_PASS" | sudo chroot "$WORK_DIR/rootfs" vncpasswd -f | sudo tee "$WORK_DIR/rootfs/home/$USER_NAME/.vnc/passwd" >/dev/null
+sudo chroot "$WORK_DIR/rootfs" chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.vnc/passwd"
+sudo chmod 600 "$WORK_DIR/rootfs/home/$USER_NAME/.vnc/passwd"
 
 # Autostart VNC server on display :1 (port 5901) for the default user, reachable from the network
-echo ":1=$USER_NAME" > "$WORK_DIR/rootfs/etc/tigervnc/vncserver.users"
-cat >> "$WORK_DIR/rootfs/etc/tigervnc/vncserver-config-defaults" <<'VNCCFG'
+echo ":1=$USER_NAME" | sudo tee "$WORK_DIR/rootfs/etc/tigervnc/vncserver.users" >/dev/null
+sudo tee -a "$WORK_DIR/rootfs/etc/tigervnc/vncserver-config-defaults" >/dev/null <<'VNCCFG'
 
 # maglinux: accept connections from the network, default desktop size
 $localhost = "no";
 $geometry = "1280x800";
 1;
 VNCCFG
-chroot "$WORK_DIR/rootfs" systemctl enable 'tigervncserver@:1.service'
+sudo chroot "$WORK_DIR/rootfs" systemctl enable 'tigervncserver@:1.service'
 
-chroot "$WORK_DIR/rootfs" update-initramfs -u
+sudo chroot "$WORK_DIR/rootfs" update-initramfs -u
 
 # 3. Create compressed Btrfs image (6GB max capacity, sparse file)
 truncate -s 3800M "$WORK_DIR/$BTRFS_IMG"
@@ -138,15 +149,14 @@ safe_umount "$WORK_DIR/mnt_btrfs"
 
 # 4. Build the 8GB vfat SD card image
 truncate -s 7500M "$WORK_DIR/$IMG_NAME" # Slightly under 8GB to fit any 8GB SD card
-sudo chmod 666 "$WORK_DIR/$IMG_NAME"
 parted -s "$WORK_DIR/$IMG_NAME" mklabel msdos
 parted -s "$WORK_DIR/$IMG_NAME" mkpart primary fat32 1MiB 100%
 parted -s "$WORK_DIR/$IMG_NAME" set 1 boot on
 
 # Attach image on a fresh loop device with partition scanning
-LOOP_DEV=$(losetup -f -P --show "$WORK_DIR/$IMG_NAME")
+LOOP_DEV=$(sudo losetup -f -P --show "$WORK_DIR/$IMG_NAME")
 PART_DEV="${LOOP_DEV}p1"
-udevadm settle
+sudo udevadm settle
 for _ in 1 2 3 4 5; do [[ -b $PART_DEV ]] && break; sleep 1; done
 [[ -b $PART_DEV ]] || { echo "Partition $PART_DEV did not appear" >&2; exit 1; }
 if findmnt -S "$PART_DEV" >/dev/null; then
@@ -172,8 +182,8 @@ LABEL linux
 EOF
 
 safe_umount "$WORK_DIR/mnt_fat"
-losetup -d "$LOOP_DEV"
+sudo losetup -d "$LOOP_DEV"
 # Write Syslinux MBR
-sudo dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/mbr/mbr.bin of="$WORK_DIR/$IMG_NAME"
+dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/mbr/mbr.bin of="$WORK_DIR/$IMG_NAME"
 
 echo "Build complete: $WORK_DIR/$IMG_NAME"
