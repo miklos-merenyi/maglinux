@@ -1,0 +1,59 @@
+#!/bin/busybox sh
+# maglinux rescue initramfs: find rescue/rescue.sqfs on a FAT partition, mount it
+# read-only with a tmpfs overlay on top, and switch to it (Alpine / OpenRC).
+
+/bin/busybox mkdir -p /bin /sbin /usr/bin /usr/sbin /proc /sys /dev /run /tmp /mnt
+/bin/busybox --install -s
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+echo 0 > /proc/sys/kernel/printk 2>/dev/null   # keep driver noise off the console
+
+msg()   { echo "rescue: $*"; }
+panic() { msg "$*"; msg "dropping to a shell (exit to retry)"; setsid -c sh; exec /init; }
+
+# Load drivers for the hardware that is present (and again later: USB/MMC
+# controllers expose their devices only after their driver is loaded)
+load_hw() {
+    find /sys/devices -name modalias -exec cat {} + 2>/dev/null | sort -u |
+        xargs -r modprobe -q -a 2>/dev/null
+}
+for m in loop squashfs overlay fat vfat nls_cp437 nls_ascii nls_iso8859-1 \
+         sd_mod sr_mod usb_storage uas mmc_block; do
+    modprobe -q "$m" 2>/dev/null
+done
+
+msg "searching for rescue/rescue.sqfs ..."
+found=""
+i=0
+while [ $i -lt 30 ]; do
+    load_hw
+    for dev in /dev/sd* /dev/mmcblk* /dev/vd* /dev/hd* /dev/sr*; do
+        [ -b "$dev" ] || continue
+        if mount -t vfat -o ro "$dev" /mnt 2>/dev/null; then
+            if [ -f /mnt/rescue/rescue.sqfs ]; then found="$dev"; break 2; fi
+            umount /mnt
+        fi
+    done
+    sleep 1
+    i=$((i + 1))
+done
+[ -n "$found" ] || panic "rescue/rescue.sqfs not found on any FAT partition"
+msg "found on $found"
+
+mkdir -p /lower /rw /newroot
+mount -t squashfs -o loop,ro /mnt/rescue/rescue.sqfs /lower || panic "cannot mount rescue.sqfs"
+mount -t tmpfs -o mode=755 tmpfs /rw
+mkdir -p /rw/upper /rw/work
+mount -t overlay overlay -o lowerdir=/lower,upperdir=/rw/upper,workdir=/rw/work /newroot \
+    || panic "cannot mount overlay"
+
+# Keep the boot partition reachable (read-only) in the rescue system
+mkdir -p /newroot/media/sdcard
+mount --move /mnt /newroot/media/sdcard
+
+for d in dev proc sys; do mount --move /$d /newroot/$d; done
+echo 4 > /newroot/proc/sys/kernel/printk 2>/dev/null
+exec switch_root /newroot /sbin/init

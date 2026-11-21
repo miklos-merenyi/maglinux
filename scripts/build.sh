@@ -81,6 +81,10 @@ on_error() {
     echo "ERROR: command failed at line $1: $2" >&2
 }
 
+# Alpine rescue system (build_rescue)
+# shellcheck source=scripts/rescue.sh
+. "$(dirname "$(realpath "$0")")/rescue.sh"
+
 cleanup
 trap on_exit EXIT
 trap 'exit 130' INT TERM
@@ -147,7 +151,10 @@ sudo mount -o loop,compress=zstd:3 "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/mnt_btrfs"
 sudo cp -a "$WORK_DIR/rootfs/." "$WORK_DIR/mnt_btrfs/"
 safe_umount "$WORK_DIR/mnt_btrfs"
 
-# 4. Build the 8GB vfat SD card image
+# 4. Alpine rescue system -> $WORK_DIR/rescue/{vmlinuz,initramfs.gz,rescue.sqfs}
+build_rescue
+
+# 5. Build the 8GB vfat SD card image
 truncate -s 7500M "$WORK_DIR/$IMG_NAME" # Slightly under 8GB to fit any 8GB SD card
 parted -s "$WORK_DIR/$IMG_NAME" mklabel msdos
 parted -s "$WORK_DIR/$IMG_NAME" mkpart primary fat32 1MiB 100%
@@ -174,11 +181,29 @@ sudo cp "$WORK_DIR/rootfs/boot/vmlinuz-"* "$WORK_DIR/mnt_fat/vmlinuz"
 sudo cp "$WORK_DIR/rootfs/boot/initrd.img-"* "$WORK_DIR/mnt_fat/initrd.img"
 sudo cp "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/mnt_fat/"
 
+# Rescue system and boot menu (menu modules must match the installed syslinux version)
+sudo mkdir -p "$WORK_DIR/mnt_fat/rescue"
+sudo cp "$WORK_DIR/rescue/vmlinuz" "$WORK_DIR/rescue/initramfs.gz" "$WORK_DIR/rescue/rescue.sqfs" \
+    "$WORK_DIR/mnt_fat/rescue/"
+sudo cp /usr/lib/syslinux/modules/bios/menu.c32 /usr/lib/syslinux/modules/bios/libutil.c32 \
+    "$WORK_DIR/mnt_fat/"
+
 sudo tee "$WORK_DIR/mnt_fat/syslinux.cfg" > /dev/null <<EOF
+UI menu.c32
+PROMPT 0
+TIMEOUT 50
+MENU TITLE $HOSTNAME_NEW boot menu
 DEFAULT linux
+
 LABEL linux
+    MENU LABEL $HOSTNAME_NEW (Debian 12)
     KERNEL /vmlinuz
     APPEND initrd=/initrd.img root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw
+
+LABEL rescue
+    MENU LABEL Rescue system (Alpine, read-only, root autologin)
+    KERNEL /rescue/vmlinuz
+    APPEND initrd=/rescue/initramfs.gz console=ttyS0,115200 console=tty0
 EOF
 
 safe_umount "$WORK_DIR/mnt_fat"

@@ -1,0 +1,12 @@
+
+ maglinux RESCUE system (Alpine Linux, read-only squashfs + RAM overlay)
+ All changes are lost on reboot.
+
+ Boot partition (read-only):  /media/sdcard
+ Main system image:           /media/sdcard/rootfs.btrfs
+
+ Inspect / repair the main system:
+   mount -o remount,rw /media/sdcard
+   mkdir -p /mnt/root && mount -o loop /media/sdcard/rootfs.btrfs /mnt/root
+   btrfs check /media/sdcard/rootfs.btrfs      (only while NOT mounted)
+
