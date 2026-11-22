@@ -43,3 +43,7 @@ lightdm-gtk-greeter
 xfce4
 xfce4-terminal
 dbus-x11
+
+# MQTT support
+mosquitto
+mosquitto-clients

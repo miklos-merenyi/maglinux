@@ -8,6 +8,7 @@ set -eEuo pipefail
 # so perl/apt/dpkg there don't print "Setting locale failed" warnings.
 # sudo passes LANG/LANGUAGE/LC_* through, so this also reaches the chroots.
 export LC_ALL=C LANG=C LANGUAGE=
+echo $PATH | grep -q /sbin || export PATH=$PATH:/sbin:/usr/sbin
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG="$REPO/config"
