@@ -172,8 +172,8 @@ sudo chroot "$WORK_DIR/rootfs" systemctl enable 'tigervncserver@:1.service'
 
 sudo chroot "$WORK_DIR/rootfs" update-initramfs -u
 
-# 3. Create compressed Btrfs image (6GB max capacity, sparse file)
-truncate -s 3800M "$WORK_DIR/$BTRFS_IMG"
+# 3. Create compressed Btrfs image (2GB max capacity, sparse file)
+truncate -s 2048M "$WORK_DIR/$BTRFS_IMG"
 mkfs.btrfs -f -L DEBIAN_ROOT "$WORK_DIR/$BTRFS_IMG"
 
 mkdir -p "$WORK_DIR/mnt_btrfs"
