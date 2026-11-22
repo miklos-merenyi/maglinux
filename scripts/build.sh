@@ -212,6 +212,7 @@ sudo syslinux -i "$PART_DEV"
 
 mkdir -p "$WORK_DIR/mnt_fat"
 sudo mount "$PART_DEV" "$WORK_DIR/mnt_fat"
+sudo mkdir "$WORK_DIR/mnt_fat/data"
 
 # Copy kernel, initrd, Btrfs image, and Syslinux config
 sudo cp "$WORK_DIR/rootfs/boot/vmlinuz-"* "$WORK_DIR/mnt_fat/vmlinuz"
