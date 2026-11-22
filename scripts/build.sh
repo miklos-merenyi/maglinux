@@ -108,7 +108,7 @@ sudo rm -rf "$WORK_DIR/rootfs" "$WORK_DIR/$BTRFS_IMG" "$WORK_DIR/$IMG_NAME"
 sudo mmdebstrap --arch=i386 --variant=minbase \
     --aptopt='Apt::Install-Recommends "false";' \
     --aptopt='Acquire::http::Proxy "http://127.0.0.1:3142";' \
-    --include="linux-image-686,firmware-realtek,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd,logrotate,sudo,xserver-xorg-core,xserver-xorg-video-vesa,xserver-xorg-video-fbdev,xserver-xorg-input-libinput,lightdm,lightdm-gtk-greeter" \
+    --include="linux-image-686,firmware-realtek,systemd-sysv,btrfs-progs,initramfs-tools,syslinux,dosfstools,udev,kmod,ifupdown,isc-dhcp-client,openssh-server,zstd,xfce4,xfce4-terminal,dbus-x11,tigervnc-standalone-server,tigervnc-tools,network-manager,network-manager-gnome,polkitd,logrotate,sudo,mc,xserver-xorg-core,xserver-xorg-video-vesa,xserver-xorg-video-fbdev,xserver-xorg-video-intel,xserver-xorg-input-libinput,lightdm,lightdm-gtk-greeter" \
     bookworm "$WORK_DIR/rootfs" "${DEBIAN_SOURCES[@]}"
 
 # The apt proxy (apt-cacher-ng on the build host) is only reachable during the build;
