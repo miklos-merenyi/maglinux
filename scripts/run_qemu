@@ -5,7 +5,7 @@ set -e
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 IMG="$REPO/build/sdcard-8g.img"
 
-[ -f "$IMG" ] || { echo "Image not found: $IMG (run sudo scripts/build.sh first)" >&2; exit 1; }
+[ -f "$IMG" ] || { echo "Image not found: $IMG (run make first)" >&2; exit 1; }
 
 exec qemu-system-i386 \
     -enable-kvm \

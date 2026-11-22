@@ -1,0 +1,5 @@
+# APT sources of the built systems (used for the bootstrap and written to their
+# /etc/apt/sources.list): release + stable updates + security updates.
+deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm main non-free-firmware
+deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm-updates main non-free-firmware
+deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://security.debian.org/debian-security bookworm-security main non-free-firmware

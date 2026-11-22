@@ -1,0 +1,45 @@
+# Packages of the main system (Debian 12 i386, minbase, no recommends).
+# One per line; changing this re-runs the Debian bootstrap ("make" stage: base).
+
+# Kernel, boot, filesystems
+linux-image-686
+firmware-realtek
+systemd-sysv
+udev
+kmod
+initramfs-tools
+btrfs-progs
+dosfstools
+syslinux
+zstd
+
+# Network and remote access
+ifupdown
+isc-dhcp-client
+openssh-server
+network-manager
+network-manager-gnome
+tigervnc-standalone-server
+tigervnc-tools
+
+# System tools
+polkitd
+logrotate
+sudo
+mc
+nano
+vim-tiny
+
+# Local X (vesa/fbdev for boards without a KMS driver, intel for i945-class GPUs)
+xserver-xorg-core
+xserver-xorg-video-vesa
+xserver-xorg-video-fbdev
+xserver-xorg-video-intel
+xserver-xorg-input-libinput
+lightdm
+lightdm-gtk-greeter
+
+# Desktop
+xfce4
+xfce4-terminal
+dbus-x11

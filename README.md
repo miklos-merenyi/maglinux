@@ -72,10 +72,12 @@ sudo usermod -aG kvm "\$USER"
 
 Once the host prerequisites above are installed:
 
-1. **Build the 8GB SD card image:**
+1. **Build the 8GB SD card image** (run as your normal user; the steps use `sudo`):
    ```bash
-   ./scripts/build.sh
+   make
    ```
+   `make` only reruns the build stages whose inputs changed; see
+   [section 5](#5-build-system).
 2. **Test the image in QEMU (with VNC port `5901` forwarded):**
    ```bash
    qemu-system-i386 \
@@ -91,3 +93,73 @@ Once the host prerequisites above are installed:
    sudo dd if=build/sdcard-8g.img of=/dev/sdX bs=4M status=progress conv=fsync
    ```
 
+---
+
+## 5. Build System
+
+The build is a `Makefile` that runs one script per stage (`scripts/steps/*.sh`).
+Run it as your normal user; the steps call `sudo` themselves. A stage is rebuilt
+only when one of its inputs changed.
+
+### Stages
+
+```
+config/packages ─────────> base ──> rootfs ──> rootfs.btrfs ──┐
+                            └─(kernel modules)─┐              ├──> sdcard-8g.img
+config/rescue-packages ──> rescue-base ──> rescue ────────────┘
+```
+
+* **`base` / `rescue-base`:** the slow `mmdebstrap` runs that download and install the
+  Debian packages (`build/base`, `build/rescue-base`). These trees are never modified.
+* **`rootfs` / `rescue`:** take a fresh copy of the matching base and apply the
+  overlay, users, passwords, desktop and VNC settings (`build/rootfs`), or build the
+  rescue initramfs and `rescue.sqfs` (`build/rescue/`). Changing the configuration
+  therefore never triggers a new Debian bootstrap.
+* **`btrfs`:** packs `build/rootfs` into the compressed `build/rootfs.btrfs`.
+* **`image`:** assembles the bootable `build/sdcard-8g.img`.
+
+### What a change rebuilds
+
+| You change | Stages rerun |
+|---|---|
+| a file in `overlay/` or `config/settings.sh` | rootfs, btrfs, image |
+| a file in `rescue/` or `config/rescue-settings.sh` | rescue, image |
+| `config/packages` | base, rootfs, btrfs, rescue (for the kernel modules), image |
+| `config/sources.list`, or after `make refresh` | everything |
+| nothing | nothing |
+
+### Configuration (`config/`)
+
+| File | Contents |
+|---|---|
+| `packages` | Packages of the main system, one per line (`#` comments allowed) |
+| `rescue-packages` | Packages of the rescue system |
+| `sources.list` | APT sources used for the bootstrap and written into the images |
+| `settings.sh` | Hostname, user name, passwords, image sizes |
+| `rescue-settings.sh` | Rescue system hostname and root password |
+
+### Targets
+
+| Command | Effect |
+|---|---|
+| `make` | Build `build/sdcard-8g.img`, rerunning only what changed |
+| `make <stage>` | Build up to one stage: `base`, `rootfs`, `btrfs`, `rescue-base`, `rescue`, `image` |
+| `make refresh` | Bootstrap both systems again on the next build, to pick up new Debian package versions (e.g. security updates) when no config file changed |
+| `make run` | Build if needed, then boot the image in QEMU (`scripts/run_qemu`) |
+| `make clean` | Remove all build output except the two bootstraps |
+| `make distclean` | Remove the whole `build/` directory |
+
+Set `APT_PROXY=` (empty) to download packages directly instead of through
+`apt-cacher-ng`, e.g. `APT_PROXY= make`.
+
+### Notes
+
+* **A file deleted from `overlay/` or `rescue/` is not noticed** (only changed and new
+  files are). Run `make clean` after deleting one.
+* **The two bootstraps need extra disk space**, roughly 1.5 GB in total, because they
+  are kept next to the configured copies.
+* **An interrupted build never leaves a finished-looking image:** images are built
+  under a `.tmp` name and renamed when complete, and each step unmounts and detaches
+  its own loop devices on exit.
+* `make clean` and `make distclean` use `rm --one-file-system`, so they do not delete
+  into anything still mounted inside `build/`.

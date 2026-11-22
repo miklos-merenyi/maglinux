@@ -1,0 +1,19 @@
+# Packages of the rescue system (Debian 12 i386, minbase, no recommends).
+# One per line; changing this re-runs the rescue bootstrap ("make" stage: rescue-base).
+# The kernel is shared with the main system, so no linux-image here.
+systemd-sysv
+udev
+kmod
+systemd-resolved
+openssh-server
+busybox-static
+firmware-realtek
+btrfs-progs
+dosfstools
+e2fsprogs
+fdisk
+iproute2
+iputils-ping
+procps
+less
+nano
