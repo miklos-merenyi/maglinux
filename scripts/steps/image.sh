@@ -35,6 +35,7 @@ sudo syslinux -i "$PART_DEV"
 
 mkdir -p "$MNT"
 sudo mount "$PART_DEV" "$MNT"
+sudo mkdir "$MNT/data"
 
 # Kernel, initrd, Btrfs image
 sudo cp "$ROOTFS_DIR/boot/vmlinuz-"* "$MNT/vmlinuz"
