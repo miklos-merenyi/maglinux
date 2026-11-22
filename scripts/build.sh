@@ -139,6 +139,13 @@ for g in sudo audio video plugdev netdev users; do
 done
 printf '%s\n' "root:$ROOT_PASS" "$USER_NAME:$USER_PASS" | sudo chroot "$WORK_DIR/rootfs" chpasswd
 
+# The SD card's FAT partition (/run/sdcard, mounted in the initramfs) belongs to the
+# default user; the initramfs script reads the numeric ids from this file
+printf 'MAGLINUX_SDCARD_UID=%s\nMAGLINUX_SDCARD_GID=%s\n' \
+    "$(sudo chroot "$WORK_DIR/rootfs" id -u "$USER_NAME")" \
+    "$(sudo chroot "$WORK_DIR/rootfs" id -g "$USER_NAME")" \
+    | sudo tee "$WORK_DIR/rootfs/etc/initramfs-tools/conf.d/maglinux-sdcard" >/dev/null
+
 # Passwordless sudo for the default user (validated, a broken sudoers file fails the build)
 echo "$USER_NAME ALL=(ALL:ALL) NOPASSWD: ALL" | sudo tee "$WORK_DIR/rootfs/etc/sudoers.d/$USER_NAME" >/dev/null
 sudo chmod 440 "$WORK_DIR/rootfs/etc/sudoers.d/$USER_NAME"

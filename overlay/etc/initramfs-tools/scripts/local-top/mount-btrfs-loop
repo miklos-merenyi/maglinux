@@ -15,13 +15,20 @@ done
 
 mkdir -p /run/sdcard
 
+# Owner of the FAT filesystem (vfat has no permissions of its own, ownership is
+# set at mount time). Written by build.sh: the default user gets read/write.
+MAGLINUX_SDCARD_UID=0
+MAGLINUX_SDCARD_GID=0
+[ -f /conf/conf.d/maglinux-sdcard ] && . /conf/conf.d/maglinux-sdcard
+SDCARD_OPTS="rw,uid=$MAGLINUX_SDCARD_UID,gid=$MAGLINUX_SDCARD_GID,dmask=0022,fmask=0133"
+
 # Wait (up to ~30s) for the SD/USB/IDE device to show up and find rootfs.btrfs
 found=""
 i=0
 while [ $i -lt 30 ] && [ -z "$found" ]; do
     for dev in /dev/sd* /dev/mmcblk* /dev/vd* /dev/hd*; do
         [ -b "$dev" ] || continue
-        if mount -t vfat -o rw "$dev" /run/sdcard 2>/dev/null; then
+        if mount -t vfat -o "$SDCARD_OPTS" "$dev" /run/sdcard 2>/dev/null; then
             if [ -f /run/sdcard/rootfs.btrfs ]; then
                 found="$dev"
                 break
@@ -38,6 +45,9 @@ if [ -z "$found" ]; then
     log_failure_msg "mount-btrfs-loop: rootfs.btrfs not found on any FAT partition"
     exit 0
 fi
+
+# User data lives on the FAT partition, outside the system image
+mkdir -p /run/sdcard/data
 
 [ -b /dev/loop0 ] || mknod /dev/loop0 b 7 0
 if losetup /dev/loop0 /run/sdcard/rootfs.btrfs; then
