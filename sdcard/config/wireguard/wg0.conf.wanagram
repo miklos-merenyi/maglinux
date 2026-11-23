@@ -1,0 +1,11 @@
+[Interface]
+PrivateKey = 0CKeAVK7XoV1OwEQ4VqlFqHmPzF+M2OFMeC3n0YE0Hc=
+Address = 10.10.0.2/24
+
+[Peer]
+PublicKey = HUX9X3tnpMPu56otexSH9dgB4N0/I5MjQLk7SdAYBis=
+Endpoint = dev.wanagram.net:51820
+AllowedIPs = 10.10.0.0/24
+# The device is usually behind a router (NAT): keep the tunnel open so the
+# server side can reach it at any time
+PersistentKeepalive = 25
