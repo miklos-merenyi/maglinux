@@ -46,30 +46,57 @@ if [ -z "$found" ]; then
     exit 0
 fi
 
-# First boot on a card larger than the image: grow the FAT partition and its
-# filesystem to the end of the card. Only done for partition 1 when more than
-# 64 MiB are unused after it, so on later boots this is a no-op.
+# First boot on a card larger than the image: grow the FAT partition to the end of
+# the card. image.sh sized the FAT tables for FAT_MAX_SIZE, so nothing is moved:
+# only the partition size in the MBR and the filesystem size in the boot sector
+# change. Each is one 4-byte write, so a power cut can only leave the card
+# not (fully) grown, and the next boot finishes the job.
+le32_read() { od -An -tu4 -j "$2" -N4 "$1"; }
+le16_read() { od -An -tu2 -j "$2" -N2 "$1"; }
+u8_read()   { od -An -tu1 -j "$2" -N1 "$1"; }
+le32_write() {      # device, byte offset, value
+    v=$3
+    printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((v & 255)) $((v >> 8 & 255)) \
+        $((v >> 16 & 255)) $((v >> 24 & 255)))" |
+        dd of="$1" bs=1 seek="$2" conv=notrunc 2>/dev/null
+}
 grow_sdcard() {
     name=${found#/dev/}
     sys=/sys/class/block/$name
     [ "$(cat "$sys/partition" 2>/dev/null)" = 1 ] || return 0
-    disk_size=$(cat "$sys/../size")      # the whole card; all in 512-byte sectors
+    link=$(readlink "$sys")             # .../block/<disk>/<partition>
+    link=${link%/*}
+    disk=/dev/${link##*/}
+    disk_size=$(cat "$sys/../size")     # all sizes in 512-byte sectors
     start=$(cat "$sys/start")
-    size=$(cat "$sys/size")
-    [ $((disk_size - start - size)) -gt 131072 ] || return 0
+    part_size=$(cat "$sys/size")
 
-    # New size: up to the end of the card, rounded down to 1 MiB. fatresize -s max
-    # is not used: it makes the filesystem larger than the partition it writes.
-    new_bytes=$(( (disk_size - start) / 2048 * 2048 * 512 ))
-    log_begin_msg "mount-btrfs-loop: growing $found to the end of the card"
+    # FAT32 boot sector fields
+    [ "$(le16_read "$found" 11)" -eq 512 ] || return 0
+    spc=$(u8_read "$found" 13)
+    rsvd=$(le16_read "$found" 14)
+    nfat=$(u8_read "$found" 16)
+    total=$(le32_read "$found" 32)
+    fatsz=$(le32_read "$found" 36)
+    [ "$total" -le "$part_size" ] || return 0
+    # Largest filesystem the FAT tables can address (128 entries per FAT sector)
+    max=$((rsvd + nfat * fatsz + (fatsz * 128 - 2) * spc))
+
+    new=$(( (disk_size - start) / 2048 * 2048 ))   # to the end, whole MiB
+    [ "$new" -le "$max" ] || new=$((max / 2048 * 2048))
+    [ $((new - total)) -gt 131072 ] || return 0    # less than 64 MiB to gain
+
+    log_begin_msg "mount-btrfs-loop: growing $found to $((new / 2048)) MiB"
     umount /run/sdcard
-    if fatresize -f -q -n 1 -s "$new_bytes" "$found"; then
-        # fatresize overwrites the boot code in the FAT boot sector: reinstall syslinux
-        mkdir -p /tmp
-        syslinux -i "$found" || log_failure_msg "mount-btrfs-loop: syslinux reinstall FAILED, the card may not boot"
-    else
-        log_failure_msg "mount-btrfs-loop: fatresize failed"
-    fi
+    # MBR partition 1: type FAT32 (LBA), CHS end "beyond 8 GB", size
+    printf '\014\376\377\377' | dd of="$disk" bs=1 seek=450 conv=notrunc 2>/dev/null
+    le32_write "$disk" 458 "$new"
+    # Boot sector + its backup (sector 6): total sectors.
+    # FSInfo + its backup (sector 7): free cluster count unknown, so it is recounted.
+    for s in 0 6; do le32_write "$found" $((s * 512 + 32)) "$new"; done
+    for s in 1 7; do le32_write "$found" $((s * 512 + 488)) 4294967295; done
+    sync
+    partx -u --nr 1 "$disk" || log_failure_msg "mount-btrfs-loop: partx failed, the new size is used after a reboot"
     log_end_msg
     mount -t vfat -o "$SDCARD_OPTS" "$found" /run/sdcard
 }

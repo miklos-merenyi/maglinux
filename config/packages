@@ -10,7 +10,6 @@ kmod
 initramfs-tools
 btrfs-progs
 dosfstools
-fatresize
 syslinux
 zstd
 

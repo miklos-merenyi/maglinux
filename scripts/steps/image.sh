@@ -30,7 +30,27 @@ if findmnt -S "$PART_DEV" >/dev/null; then
     echo "$PART_DEV is unexpectedly mounted, aborting" >&2; exit 1
 fi
 
-sudo mkfs.vfat -F 32 -n BOOT "$PART_DEV"
+# FAT32 with FAT_CLUSTER_SIZE clusters and FAT tables sized for FAT_MAX_SIZE, so the initramfs
+# can grow it on a larger card by changing only the size fields (mount-btrfs-loop).
+# mkfs.fat is given the larger size (it warns about the mismatch), then the
+# filesystem size is set back to the partition: total sectors in the boot sector
+# and its backup (sector 6), free cluster count "unknown" in FSInfo and its
+# backup (sector 7), so it is recounted on mount.
+le32() {
+    printf "$(printf '\\x%02x\\x%02x\\x%02x\\x%02x' $(($1 & 255)) $(($1 >> 8 & 255)) \
+        $(($1 >> 16 & 255)) $(($1 >> 24 & 255)))"
+}
+PART_SECTORS=$(sudo blockdev --getsz "$PART_DEV")
+FAT_MAX_KIB=$(( $(numfmt --from=iec "$FAT_MAX_SIZE") / 1024 ))
+FAT_CLUSTER_SECTORS=$(( $(numfmt --from=iec "$FAT_CLUSTER_SIZE") / 512 ))
+sudo mkfs.vfat -F 32 -s "$FAT_CLUSTER_SECTORS" -n BOOT "$PART_DEV" "$FAT_MAX_KIB" 2>&1 | grep -v 'block count mismatch'
+for s in 0 6; do
+    le32 "$PART_SECTORS" | sudo dd of="$PART_DEV" bs=1 seek=$((s * 512 + 32)) conv=notrunc status=none
+done
+for s in 1 7; do
+    le32 4294967295 | sudo dd of="$PART_DEV" bs=1 seek=$((s * 512 + 488)) conv=notrunc status=none
+done
+sudo fsck.fat -n "$PART_DEV" >/dev/null
 sudo syslinux -i "$PART_DEV"
 
 mkdir -p "$MNT"

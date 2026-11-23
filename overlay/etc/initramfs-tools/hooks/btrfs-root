@@ -8,15 +8,5 @@ case $1 in prereqs) prereqs; exit 0;; esac
 manual_add_modules vfat fat nls_cp437 nls_ascii nls_iso8859-1 loop btrfs zstd_compress zstd_decompress
 copy_exec /sbin/losetup /sbin
 # First-boot growing of the FAT partition (scripts/local-top/mount-btrfs-loop)
-copy_exec /usr/sbin/fatresize /sbin
-copy_exec /usr/bin/syslinux /sbin
-# Debian's syslinux writes ldlinux.sys/ldlinux.c32 with mtools (mcopy, mattrib)
-copy_exec /usr/bin/mtools /bin
-ln -sf mtools "$DESTDIR/bin/mcopy"
-ln -sf mtools "$DESTDIR/bin/mattrib"
-# mtools converts file names to/from codepage 850 with glibc iconv
-for g in /usr/lib/*/gconv; do
-    copy_file config "$g/gconv-modules"
-    for f in "$g"/gconv-modules.d/*.conf; do copy_file config "$f"; done
-    copy_exec "$g/IBM850.so"
-done
+copy_exec /usr/bin/od /bin
+copy_exec /usr/bin/partx /bin
