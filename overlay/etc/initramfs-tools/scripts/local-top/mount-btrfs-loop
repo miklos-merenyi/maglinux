@@ -46,6 +46,35 @@ if [ -z "$found" ]; then
     exit 0
 fi
 
+# First boot on a card larger than the image: grow the FAT partition and its
+# filesystem to the end of the card. Only done for partition 1 when more than
+# 64 MiB are unused after it, so on later boots this is a no-op.
+grow_sdcard() {
+    name=${found#/dev/}
+    sys=/sys/class/block/$name
+    [ "$(cat "$sys/partition" 2>/dev/null)" = 1 ] || return 0
+    disk_size=$(cat "$sys/../size")      # the whole card; all in 512-byte sectors
+    start=$(cat "$sys/start")
+    size=$(cat "$sys/size")
+    [ $((disk_size - start - size)) -gt 131072 ] || return 0
+
+    # New size: up to the end of the card, rounded down to 1 MiB. fatresize -s max
+    # is not used: it makes the filesystem larger than the partition it writes.
+    new_bytes=$(( (disk_size - start) / 2048 * 2048 * 512 ))
+    log_begin_msg "mount-btrfs-loop: growing $found to the end of the card"
+    umount /run/sdcard
+    if fatresize -f -q -n 1 -s "$new_bytes" "$found"; then
+        # fatresize overwrites the boot code in the FAT boot sector: reinstall syslinux
+        mkdir -p /tmp
+        syslinux -i "$found" || log_failure_msg "mount-btrfs-loop: syslinux reinstall FAILED, the card may not boot"
+    else
+        log_failure_msg "mount-btrfs-loop: fatresize failed"
+    fi
+    log_end_msg
+    mount -t vfat -o "$SDCARD_OPTS" "$found" /run/sdcard
+}
+grow_sdcard
+
 [ -b /dev/loop0 ] || mknod /dev/loop0 b 7 0
 if losetup /dev/loop0 /run/sdcard/rootfs.btrfs; then
     log_success_msg "mount-btrfs-loop: $found:/rootfs.btrfs attached to /dev/loop0"

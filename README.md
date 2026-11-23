@@ -92,6 +92,10 @@ Once the host prerequisites above are installed:
    ```bash
    sudo dd if=build/sdcard-8g.img of=/dev/sdX bs=4M status=progress conv=fsync
    ```
+   A larger card works too: on the first boot the initramfs grows the FAT partition
+   and its filesystem to the end of the card (`fatresize`, then `syslinux -i`
+   because the resize overwrites the boot code). This takes a few seconds; do not
+   cut the power during that first boot.
 
 ---
 
