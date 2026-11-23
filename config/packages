@@ -21,6 +21,8 @@ network-manager
 network-manager-gnome
 tigervnc-standalone-server
 tigervnc-tools
+wireguard
+wireguard-tools
 
 # System tools
 polkitd
@@ -47,3 +49,5 @@ dbus-x11
 # MQTT support
 mosquitto
 mosquitto-clients
+
+

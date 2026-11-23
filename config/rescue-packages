@@ -17,3 +17,5 @@ iputils-ping
 procps
 less
 nano
+wireguard
+wireguard-tools
