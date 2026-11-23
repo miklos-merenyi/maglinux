@@ -186,6 +186,11 @@ without booting the device:
 * **After editing on the running device** (`/run/sdcard/config/wireguard/wg0.conf`):
   `sudo systemctl restart wg-quick@wg0` imports it again.
 * **Do not add a `DNS =` line:** `resolvconf` is not installed, and `wg-quick` fails with it.
+* **The clock must be right:** the server rejects handshakes with a timestamp older
+  than the last one it saw. `wg-quick@wg0` therefore waits for the first NTP sync
+  (`systemd-timesyncd`, Debian's NTP pool servers, outgoing UDP port 123). If no sync
+  happens within 2 minutes it starts anyway: the main system keeps its clock from
+  the last shutdown, so the tunnel usually works without the sync.
 * **The rescue system brings up the same tunnel**, from the same
   `config/wireguard/wg0.conf` on the card. Both systems use the same key, so only
   one of them can be up at a time, which is always the case on one device.

@@ -42,10 +42,11 @@ sudo chroot "$root" systemctl enable -q systemd-networkd systemd-resolved
 # card path set by rescue/overlay/.../maglinux-wireguard-import.service.d/
 for f in usr/local/sbin/maglinux-wireguard-import \
          etc/systemd/system/maglinux-wireguard-import.service \
-         etc/systemd/system/wg-quick@.service.d/50-maglinux-sdcard.conf; do
+         etc/systemd/system/wg-quick@.service.d/50-maglinux-sdcard.conf \
+         etc/systemd/system/systemd-time-wait-sync.service.d/50-maglinux-timeout.conf; do
     sudo install -D -m "$(stat -c %a "$REPO/overlay/$f")" "$REPO/overlay/$f" "$root/$f"
 done
-sudo chroot "$root" systemctl enable -q wg-quick@wg0.service
+sudo chroot "$root" systemctl enable -q wg-quick@wg0.service systemd-time-wait-sync.service
 # Per-boot identity: no baked-in machine-id or ssh host keys
 : | sudo tee "$root/etc/machine-id" >/dev/null
 sudo rm -f "$root"/etc/ssh/ssh_host_*

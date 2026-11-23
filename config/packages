@@ -22,6 +22,8 @@ network-manager-gnome
 tigervnc-standalone-server
 tigervnc-tools
 wireguard-tools
+# NTP: WireGuard handshakes need a correct clock
+systemd-timesyncd
 iputils-ping
 traceroute
 
