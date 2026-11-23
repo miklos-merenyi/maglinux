@@ -52,6 +52,9 @@ for s in 1 7; do
 done
 sudo fsck.fat -n "$PART_DEV" >/dev/null
 sudo syslinux -i "$PART_DEV"
+# syslinux writes its name and boot code only into the primary boot sector; copy it
+# to the backup (sector 6) so fsck.fat does not report differences
+sudo dd if="$PART_DEV" of="$PART_DEV" bs=512 count=1 seek=6 conv=notrunc status=none
 
 mkdir -p "$MNT"
 sudo mount "$PART_DEV" "$MNT"
