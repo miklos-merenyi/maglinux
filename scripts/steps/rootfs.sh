@@ -72,4 +72,8 @@ $geometry = "1280x800";
 VNCCFG
 sudo chroot "$R" systemctl enable 'tigervncserver@:1.service'
 
+# WireGuard wg0, configured from the SD card (sdcard/config/wireguard/); the unit
+# is skipped while the card has no wg0.conf
+sudo chroot "$R" systemctl enable -q wg-quick@wg0.service
+
 sudo chroot "$R" update-initramfs -u

@@ -10,3 +10,6 @@
    mkdir -p /mnt/root && mount -o loop /media/sdcard/rootfs.btrfs /mnt/root
    btrfs check /media/sdcard/rootfs.btrfs      (only while NOT mounted)
 
+ WireGuard: wg0 comes up if /media/sdcard/config/wireguard/wg0.conf exists
+   wg show; systemctl status wg-quick@wg0
+

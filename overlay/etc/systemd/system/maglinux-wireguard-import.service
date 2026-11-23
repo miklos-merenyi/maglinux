@@ -1,0 +1,8 @@
+[Unit]
+Description=Import WireGuard configs from the SD card (/run/sdcard/config/wireguard)
+# Pulled in by every wg-quick@ start (see wg-quick@.service.d/), so a restart
+# of the tunnel re-reads the config from the card.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/maglinux-wireguard-import

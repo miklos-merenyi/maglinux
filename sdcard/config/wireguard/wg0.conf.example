@@ -1,0 +1,23 @@
+# WireGuard tunnel wg0 for maglinux.
+#
+# To enable: copy this file to wg0.conf in this folder and fill in the keys and
+# addresses. At boot maglinux copies it to /etc/wireguard/wg0.conf (root only)
+# and brings up wg0. Delete wg0.conf to disable the tunnel.
+# After editing on the running device: sudo systemctl restart wg-quick@wg0
+#
+# Keys (on any Linux machine with wireguard-tools):
+#   wg genkey | tee privatekey | wg pubkey > publickey
+#
+# Do not add a "DNS =" line: resolvconf is not installed, and wg-quick fails with it.
+
+[Interface]
+PrivateKey = <private key of this device>
+Address = 10.8.0.2/24
+
+[Peer]
+PublicKey = <public key of the server>
+Endpoint = vpn.example.com:51820
+AllowedIPs = 10.8.0.0/24
+# The device is usually behind a router (NAT): keep the tunnel open so the
+# server side can reach it at any time
+PersistentKeepalive = 25

@@ -1,0 +1,19 @@
+#!/bin/sh
+# Import WireGuard configs from the SD card's FAT partition into /etc/wireguard.
+# The card is the source of truth: configs removed from it are removed here too.
+# FAT has no permissions, so the copies are made root-only (wg0.conf holds the
+# private key), and Windows line endings / UTF-8 BOM are stripped.
+set -eu
+# The rescue system sets WG_IMPORT_SRC (the card is at /media/sdcard there)
+SRC="${WG_IMPORT_SRC:-/run/sdcard/config/wireguard}"
+DST=/etc/wireguard
+
+install -d -m 700 -o root -g root "$DST"
+rm -f "$DST"/*.conf
+[ -d "$SRC" ] || exit 0
+for f in "$SRC"/*.conf; do
+    [ -f "$f" ] || continue
+    dst="$DST/$(basename "$f")"
+    ( umask 077; sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "$f" > "$dst" )
+    echo "imported $f -> $dst"
+done

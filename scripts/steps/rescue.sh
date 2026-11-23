@@ -38,6 +38,14 @@ printf '127.0.0.1\tlocalhost\n127.0.1.1\t%s\n::1\t\tlocalhost ip6-localhost ip6-
 : | sudo tee "$root/etc/fstab" >/dev/null
 echo "root:$RESCUE_ROOT_PASS" | sudo chroot "$root" chpasswd
 sudo chroot "$root" systemctl enable -q systemd-networkd systemd-resolved
+# WireGuard: the main system's import service (config from the card), with the
+# card path set by rescue/overlay/.../maglinux-wireguard-import.service.d/
+for f in usr/local/sbin/maglinux-wireguard-import \
+         etc/systemd/system/maglinux-wireguard-import.service \
+         etc/systemd/system/wg-quick@.service.d/50-maglinux-sdcard.conf; do
+    sudo install -D -m "$(stat -c %a "$REPO/overlay/$f")" "$REPO/overlay/$f" "$root/$f"
+done
+sudo chroot "$root" systemctl enable -q wg-quick@wg0.service
 # Per-boot identity: no baked-in machine-id or ssh host keys
 : | sudo tee "$root/etc/machine-id" >/dev/null
 sudo rm -f "$root"/etc/ssh/ssh_host_*

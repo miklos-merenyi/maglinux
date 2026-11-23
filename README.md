@@ -138,6 +138,9 @@ config/rescue-packages ──> rescue-base ──> rescue ───────�
 | `settings.sh` | Hostname, user name, passwords, image sizes |
 | `rescue-settings.sh` | Rescue system hostname and root password |
 
+Files in `sdcard/` are copied as-is onto the SD card's FAT partition (mounted at
+`/run/sdcard` on the device, owned by the default user).
+
 ### Targets
 
 | Command | Effect |
@@ -154,7 +157,7 @@ Set `APT_PROXY=` (empty) to download packages directly instead of through
 
 ### Notes
 
-* **A file deleted from `overlay/` or `rescue/` is not noticed** (only changed and new
+* **A file deleted from `overlay/`, `rescue/` or `sdcard/` is not noticed** (only changed and new
   files are). Run `make clean` after deleting one.
 * **The two bootstraps need extra disk space**, roughly 1.5 GB in total, because they
   are kept next to the configured copies.
@@ -163,3 +166,28 @@ Set `APT_PROXY=` (empty) to download packages directly instead of through
   its own loop devices on exit.
 * `make clean` and `make distclean` use `rm --one-file-system`, so they do not delete
   into anything still mounted inside `build/`.
+
+---
+
+## 6. WireGuard
+
+The tunnel is configured from the SD card, so it can be set up from any PC
+without booting the device:
+
+1. On the card's FAT partition, copy `config/wireguard/wg0.conf.example` to
+   `config/wireguard/wg0.conf` and fill in the keys, addresses and endpoint.
+2. Boot the device. `maglinux-wireguard-import.service` copies every
+   `config/wireguard/*.conf` to `/etc/wireguard/` (root only, Windows line endings
+   removed), then `wg-quick@wg0` brings up the tunnel.
+
+* **No `wg0.conf` on the card:** `wg-quick@wg0` is skipped without an error.
+* **The card is the source of truth:** deleting `wg0.conf` from it removes the
+  imported copy on the next boot.
+* **After editing on the running device** (`/run/sdcard/config/wireguard/wg0.conf`):
+  `sudo systemctl restart wg-quick@wg0` imports it again.
+* **Do not add a `DNS =` line:** `resolvconf` is not installed, and `wg-quick` fails with it.
+* **The rescue system brings up the same tunnel**, from the same
+  `config/wireguard/wg0.conf` on the card. Both systems use the same key, so only
+  one of them can be up at a time, which is always the case on one device.
+* **More tunnels:** add `wg1.conf` to the card and run `sudo systemctl enable wg-quick@wg1` on
+  the device.

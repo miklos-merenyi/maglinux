@@ -16,7 +16,7 @@
 #
 # base/rescue-base are the slow mmdebstrap runs; rootfs and rescue configure a
 # fresh copy of them, so editing the overlay or the settings does not bootstrap again.
-# A file *deleted* from overlay/ or rescue/ is not noticed: run `make clean` then.
+# A file *deleted* from overlay/, rescue/ or sdcard/ is not noticed: run `make clean` then.
 
 SHELL := /bin/bash
 .DELETE_ON_ERROR:
@@ -36,6 +36,11 @@ BTRFS       := $(B)/rootfs.btrfs
 IMAGE       := $(B)/sdcard-8g.img
 
 tree = $(shell find $(1) -type f)
+
+# Main-system overlay files the rescue system reuses (WireGuard import)
+RESCUE_SHARED := overlay/usr/local/sbin/maglinux-wireguard-import \
+	overlay/etc/systemd/system/maglinux-wireguard-import.service \
+	overlay/etc/systemd/system/wg-quick@.service.d/50-maglinux-sdcard.conf
 
 .PHONY: all base rootfs btrfs rescue-base rescue image refresh run clean distclean
 all: image
@@ -64,11 +69,11 @@ $(RESCUE_BASE): config/rescue-packages config/sources.list $(STEPS)/base.sh $(LI
 	$(STEPS)/base.sh rescue
 	touch $@
 
-$(RESCUE): $(RESCUE_BASE) $(BASE) config/rescue-settings.sh $(call tree,rescue) $(STEPS)/rescue.sh $(LIB)
+$(RESCUE): $(RESCUE_BASE) $(BASE) config/rescue-settings.sh $(call tree,rescue) $(RESCUE_SHARED) $(STEPS)/rescue.sh $(LIB)
 	$(STEPS)/rescue.sh
 	touch $@
 
-$(IMAGE): $(BTRFS) $(RESCUE) $(ROOTFS) config/settings.sh $(STEPS)/image.sh $(LIB)
+$(IMAGE): $(BTRFS) $(RESCUE) $(ROOTFS) config/settings.sh $(call tree,sdcard) $(STEPS)/image.sh $(LIB)
 	$(STEPS)/image.sh
 
 refresh:

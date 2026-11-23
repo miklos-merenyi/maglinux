@@ -36,6 +36,8 @@ sudo syslinux -i "$PART_DEV"
 mkdir -p "$MNT"
 sudo mount "$PART_DEV" "$MNT"
 sudo mkdir "$MNT/data"
+# Files for the card's user-editable area (config/wireguard/, ...)
+sudo cp -r "$REPO/sdcard/." "$MNT/"
 
 # Kernel, initrd, Btrfs image
 sudo cp "$ROOTFS_DIR/boot/vmlinuz-"* "$MNT/vmlinuz"
