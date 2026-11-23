@@ -23,6 +23,8 @@ tigervnc-standalone-server
 tigervnc-tools
 wireguard
 wireguard-tools
+iputils-ping
+traceroute
 
 # System tools
 polkitd

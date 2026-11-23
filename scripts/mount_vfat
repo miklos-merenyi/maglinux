@@ -23,9 +23,9 @@ if mountpoint -q "$MNT"; then
     exit 1
 fi
 
-LOOP=$(sudo losetup -f -P -r --show "$IMG")
+LOOP=$(sudo losetup -f -P --show "$IMG")
 sudo udevadm settle
 sudo mkdir -p "$MNT"
-sudo mount -o ro "${LOOP}p1" "$MNT" || { sudo losetup -d "$LOOP"; exit 1; }
+sudo mount -o rw "${LOOP}p1" "$MNT" || { sudo losetup -d "$LOOP"; exit 1; }
 echo "Mounted ${LOOP}p1 at $MNT (unmount with: $0 -u)"
 ls -l "$MNT"
