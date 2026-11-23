@@ -9,4 +9,4 @@ VNC_PASS="maguser"
 ROOT_PASS="magroot"
 
 BTRFS_SIZE="2000M"   # rootfs.btrfs (sparse) on the FAT partition
-IMG_SIZE="7000M"     # SD card image
+IMG_SIZE="4000M"     # SD card image
