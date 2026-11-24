@@ -42,10 +42,11 @@ sudo chroot "$root" systemctl enable -q systemd-networkd systemd-resolved
 # card path set by rescue/overlay/.../maglinux-wireguard-import.service.d/
 for f in usr/local/sbin/maglinux-wireguard-import \
          etc/systemd/system/maglinux-wireguard-import.service \
-         etc/systemd/system/wg-quick@.service.d/50-maglinux-sdcard.conf \
-         etc/systemd/system/systemd-time-wait-sync.service.d/50-maglinux-timeout.conf; do
+         etc/systemd/system/wg-quick@.service.d/50-maglinux-sdcard.conf; do
     sudo install -D -m "$(stat -c %a "$REPO/overlay/$f")" "$REPO/overlay/$f" "$root/$f"
 done
+# The rescue system (no maglin/GPS) sets its clock with NTP; WireGuard waits for the
+# first sync, at most 2 minutes (rescue/overlay/.../systemd-time-wait-sync.service.d/)
 sudo chroot "$root" systemctl enable -q wg-quick@wg0.service systemd-time-wait-sync.service
 # Per-boot identity: no baked-in machine-id or ssh host keys
 : | sudo tee "$root/etc/machine-id" >/dev/null

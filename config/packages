@@ -27,10 +27,8 @@ traceroute
 curl
 ca-certificates
 
-# NTP: WireGuard handshakes need a correct clock
-systemd-timesyncd
-
-# hwclock: maglin writes the GPS time to the hardware clock
+# Clock: no NTP; maglin sets it from GPS and writes it to the hardware clock with
+# hwclock (util-linux-extra), which the kernel reads at boot
 util-linux-extra
 
 # System tools

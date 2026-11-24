@@ -106,12 +106,11 @@ sudo chmod 600 "$R/etc/X11/vncpasswd"
 # WireGuard wg0, configured from the SD card (sdcard/config/wireguard/); the unit
 # is skipped while the card has no wg0.conf
 sudo chroot "$R" systemctl enable -q wg-quick@wg0.service
-# time-sync.target waits for the first NTP sync (wg-quick@ is ordered after it)
-sudo chroot "$R" systemctl enable -q systemd-time-wait-sync.service
 
 # Clock: maglin (as maguser) sets it from GPS (settimeofday, CAP_SYS_TIME from the
 # maglin package) and then runs "hwclock --systohc", so hwclock gets CAP_SYS_TIME too;
 # etc/apt/apt.conf.d/50maglinux-hwclock-cap in the overlay sets it again after upgrades.
+# Without NTP the kernel sets the clock from the hardware clock at boot.
 sudo chroot "$R" setcap cap_sys_time+ep /usr/sbin/hwclock
 
 # GSettings defaults from the overlay (usr/share/glib-2.0/schemas/*.gschema.override)
