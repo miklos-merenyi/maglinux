@@ -127,6 +127,7 @@ config/rescue-packages ──> rescue-base ──> rescue ───────�
 | You change | Stages rerun |
 |---|---|
 | a file in `overlay/` or `config/settings.sh` | rootfs, btrfs, image |
+| a `.deb` in `debs/` | rootfs, btrfs, image |
 | a file in `rescue/` or `config/rescue-settings.sh` | rescue, image |
 | `config/packages` | base, rootfs, btrfs, rescue (for the kernel modules), image |
 | `config/sources.list`, or after `make refresh` | everything |
@@ -141,6 +142,13 @@ config/rescue-packages ──> rescue-base ──> rescue ───────�
 | `sources.list` | APT sources used for the bootstrap and written into the images |
 | `settings.sh` | Hostname, user name, passwords, image sizes |
 | `rescue-settings.sh` | Rescue system hostname and root password |
+
+Every `.deb` in `debs/` is installed into the main system with `dpkg -i` in the
+`rootfs` stage (e.g. `maglin`, into `/opt/maglin`). `dpkg` does not download
+anything, so the packages' dependencies must be listed in `config/packages`
+(for `maglin`: `libgtkmm-2.4-1v5`, `libglade2-0`); a missing one fails the build.
+To update a package, replace the old `.deb` with the new one: deleting a file is
+not noticed by `make`, so run `make clean` if you only remove one.
 
 Files in `sdcard/` are copied as-is onto the SD card's FAT partition (mounted at
 `/run/sdcard` on the device, owned by the default user).

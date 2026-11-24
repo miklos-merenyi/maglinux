@@ -17,6 +17,8 @@
 # base/rescue-base are the slow mmdebstrap runs; rootfs and rescue configure a
 # fresh copy of them, so editing the overlay or the settings does not bootstrap again.
 # A file *deleted* from overlay/, rescue/ or sdcard/ is not noticed: run `make clean` then.
+# Local .deb packages in debs/ are installed into the rootfs (a new or changed one
+# reruns rootfs; their dependencies belong in config/packages).
 
 SHELL := /bin/bash
 .DELETE_ON_ERROR:
@@ -35,7 +37,10 @@ RESCUE      := $(STAMPS)/rescue
 BTRFS       := $(B)/rootfs.btrfs
 IMAGE       := $(B)/sdcard-8g.img
 
-tree = $(shell find $(1) -type f)
+# Files and symlinks of a tree. With -L (--check-symlink-times) a symlink counts with
+# its own mtime, so one that only resolves on the device (e.g. into /run/sdcard) works.
+MAKEFLAGS += -L
+tree = $(shell find $(1) ! -type d)
 
 # Main-system overlay files the rescue system reuses (WireGuard import, NTP wait)
 RESCUE_SHARED := overlay/usr/local/sbin/maglinux-wireguard-import \
@@ -59,7 +64,7 @@ $(BASE): config/packages config/sources.list $(STEPS)/base.sh $(LIB) | $(STAMPS)
 	$(STEPS)/base.sh main
 	touch $@
 
-$(ROOTFS): $(BASE) config/settings.sh $(call tree,overlay) $(STEPS)/rootfs.sh $(LIB)
+$(ROOTFS): $(BASE) config/settings.sh $(call tree,overlay) $(wildcard debs/*.deb) $(STEPS)/rootfs.sh $(LIB)
 	$(STEPS)/rootfs.sh
 	touch $@
 

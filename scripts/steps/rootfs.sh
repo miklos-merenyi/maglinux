@@ -14,6 +14,18 @@ sudo cp -r "$REPO/overlay/." "$R/"
 sudo find "$R/etc/initramfs-tools/hooks" "$R/etc/initramfs-tools/scripts" \
     -type f ! -name ORDER -exec chmod 755 {} +
 
+# Local packages (debs/*.deb). dpkg does not download anything: their dependencies
+# must be listed in config/packages, otherwise the build fails here.
+shopt -s nullglob
+debs=("$REPO"/debs/*.deb)
+shopt -u nullglob
+if (( ${#debs[@]} )); then
+    sudo mkdir -p "$R/tmp/debs"
+    sudo cp "${debs[@]}" "$R/tmp/debs/"
+    sudo chroot "$R" sh -c 'dpkg -i /tmp/debs/*.deb'
+    sudo rm -rf "$R/tmp/debs"
+fi
+
 # fstab, hostname, hosts
 echo "/dev/loop0 / btrfs defaults,compress=zstd:3,noatime 0 1" | sudo tee "$R/etc/fstab" >/dev/null
 echo "$HOSTNAME_NEW" | sudo tee "$R/etc/hostname" >/dev/null

@@ -49,9 +49,14 @@ lightdm-gtk-greeter
 xfce4
 xfce4-terminal
 dbus-x11
+mousepad
 
 # MQTT support
 mosquitto
 mosquitto-clients
 
 
+
+# Runtime dependencies of the local packages in debs/ (installed in the rootfs stage)
+libgtkmm-2.4-1v5
+libglade2-0
