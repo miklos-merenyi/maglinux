@@ -1,6 +1,6 @@
 #!/bin/bash
-# Assemble the SD card image: one bootable FAT32 partition holding syslinux, the
-# kernel + initrd, rootfs.btrfs and the rescue system.
+# Assemble the SD card image: one bootable FAT32 partition holding syslinux and the
+# kernel + initrd (boot/), rootfs.btrfs and the rescue system (rescue/).
 . "$(dirname "$(realpath "$0")")/../lib.sh"
 . "$CONFIG/settings.sh"
 
@@ -51,10 +51,6 @@ for s in 1 7; do
     le32 4294967295 | sudo dd of="$PART_DEV" bs=1 seek=$((s * 512 + 488)) conv=notrunc status=none
 done
 sudo fsck.fat -n "$PART_DEV" >/dev/null
-sudo syslinux -i "$PART_DEV"
-# syslinux writes its name and boot code only into the primary boot sector; copy it
-# to the backup (sector 6) so fsck.fat does not report differences
-sudo dd if="$PART_DEV" of="$PART_DEV" bs=512 count=1 seek=6 conv=notrunc status=none
 
 mkdir -p "$MNT"
 sudo mount "$PART_DEV" "$MNT"
@@ -63,16 +59,20 @@ sudo mkdir "$MNT/data"
 sudo cp -r "$REPO/sdcard/." "$MNT/"
 
 # Kernel, initrd, Btrfs image
-sudo cp "$ROOTFS_DIR/boot/vmlinuz-"* "$MNT/vmlinuz"
-sudo cp "$ROOTFS_DIR/boot/initrd.img-"* "$MNT/initrd.img"
+sudo mkdir -p "$MNT/boot/syslinux"
+sudo cp "$ROOTFS_DIR/boot/vmlinuz-"* "$MNT/boot/vmlinuz"
+sudo cp "$ROOTFS_DIR/boot/initrd.img-"* "$MNT/boot/initrd.img"
 sudo cp "$BTRFS_IMG" "$MNT/"
 
-# Rescue system and boot menu (menu modules must match the installed syslinux version)
+# Rescue system and boot menu. Syslinux reads syslinux.cfg and loads the menu modules
+# from its install directory, boot/syslinux/ (the modules must match the installed
+# syslinux version).
 sudo mkdir -p "$MNT/rescue"
 sudo cp "$RESCUE_OUT/initramfs.gz" "$RESCUE_OUT/rescue.sqfs" "$MNT/rescue/"
-sudo cp /usr/lib/syslinux/modules/bios/menu.c32 /usr/lib/syslinux/modules/bios/libutil.c32 "$MNT/"
+sudo cp /usr/lib/syslinux/modules/bios/menu.c32 /usr/lib/syslinux/modules/bios/libutil.c32 \
+    "$MNT/boot/syslinux/"
 
-sudo tee "$MNT/syslinux.cfg" > /dev/null <<EOF
+sudo tee "$MNT/boot/syslinux/syslinux.cfg" > /dev/null <<EOF
 UI menu.c32
 PROMPT 0
 TIMEOUT 50
@@ -81,16 +81,22 @@ DEFAULT linux
 
 LABEL linux
     MENU LABEL $HOSTNAME_NEW (Debian 12)
-    KERNEL /vmlinuz
-    APPEND initrd=/initrd.img root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw
+    KERNEL /boot/vmlinuz
+    APPEND initrd=/boot/initrd.img root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw
 
 LABEL rescue
     MENU LABEL Rescue system (root autologin, SD card writable)
-    KERNEL /vmlinuz
+    KERNEL /boot/vmlinuz
     APPEND initrd=/rescue/initramfs.gz console=ttyS0,115200 console=tty0
 EOF
 
 safe_umount "$MNT"
+# ldlinux.sys and ldlinux.c32 into boot/syslinux/ (the directory must exist)
+sudo syslinux -i -d /boot/syslinux "$PART_DEV"
+# syslinux writes its name and boot code only into the primary boot sector; copy it
+# to the backup (sector 6) so fsck.fat does not report differences
+sudo dd if="$PART_DEV" of="$PART_DEV" bs=512 count=1 seek=6 conv=notrunc status=none
+sudo fsck.fat -n "$PART_DEV" >/dev/null
 detach_loops "$TMP"
 # Write Syslinux MBR
 dd bs=440 count=1 conv=notrunc status=none if=/usr/lib/syslinux/mbr/mbr.bin of="$TMP"

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build the Debian 12 (i386) rescue system from build/rescue-base.
 #
-# The rescue system boots the main system's kernel (/vmlinuz on the FAT partition),
+# The rescue system boots the main system's kernel (/boot/vmlinuz on the FAT partition),
 # so its kernel modules are copied from the main bootstrap (build/base).
 #
 # Produces in build/rescue/:
