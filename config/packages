@@ -24,6 +24,8 @@ tigervnc-tools
 wireguard-tools
 iputils-ping
 traceroute
+curl
+ca-certificates
 
 # NTP: WireGuard handshakes need a correct clock
 systemd-timesyncd
