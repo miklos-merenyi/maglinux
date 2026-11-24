@@ -150,6 +150,10 @@ anything, so the packages' dependencies must be listed in `config/packages`
 To update a package, replace the old `.deb` with the new one: deleting a file is
 not noticed by `make`, so run `make clean` if you only remove one.
 
+Files in `overlay/` are copied into the main system's root. `overlay/home/maguser/`
+(the default user, `USER_NAME`) is copied after the user is created and is owned
+by the user; another directory under `overlay/home/` fails the build.
+
 Files in `sdcard/` are copied as-is onto the SD card's FAT partition (mounted at
 `/run/sdcard` on the device, owned by the default user).
 

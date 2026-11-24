@@ -8,8 +8,12 @@ R="$ROOTFS_DIR"
 sudo rm -rf "$R"
 sudo cp -a --reflink=auto "$BASE_DIR" "$R"
 
-# Git-tracked overlay
-sudo cp -r "$REPO/overlay/." "$R/"
+# Git-tracked overlay, except home/ (copied once the default user exists, below)
+shopt -s nullglob dotglob
+for e in "$REPO"/overlay/*; do
+    [[ $(basename "$e") == home ]] || sudo cp -r "$e" "$R/"
+done
+shopt -u nullglob dotglob
 # initramfs-tools silently ignores hooks/scripts that are not executable
 sudo find "$R/etc/initramfs-tools/hooks" "$R/etc/initramfs-tools/scripts" \
     -type f ! -name ORDER -exec chmod 755 {} +
@@ -45,6 +49,22 @@ for g in sudo audio video plugdev netdev users; do
     fi
 done
 printf '%s\n' "root:$ROOT_PASS" "$USER_NAME:$USER_PASS" | sudo chroot "$R" chpasswd
+
+# overlay/home/<user>/ goes into the default user's home, owned by the user. Copying
+# it before useradd would leave the home root-owned and without the /etc/skel files.
+for d in "$REPO"/overlay/home/*; do
+    [[ $(basename "$d") == "$USER_NAME" ]] || {
+        echo "ERROR: overlay/home/$(basename "$d"): only $USER_NAME exists (USER_NAME in config/settings.sh)" >&2
+        exit 1
+    }
+done
+if [[ -d $REPO/overlay/home/$USER_NAME ]]; then
+    H="$R/home/$USER_NAME"
+    sudo cp -r "$REPO/overlay/home/$USER_NAME/." "$H/"
+    sudo chroot "$R" chown -R -h "$USER_NAME:$USER_NAME" "/home/$USER_NAME"
+    # No group/other write access (symlinks are skipped: chmod would follow them)
+    sudo find "$H" -mindepth 1 \( -type d -o -type f \) -exec chmod go-w {} +
+fi
 
 # The SD card's FAT partition (/run/sdcard, mounted in the initramfs) belongs to the
 # default user; the initramfs script reads the numeric ids from this file

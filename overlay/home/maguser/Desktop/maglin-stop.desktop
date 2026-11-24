@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MagLin Stop
+Comment=Stop the MagLin data acquisition program cleanly
+Exec=/usr/local/bin/maglin-stop
+Icon=process-stop
+Terminal=false

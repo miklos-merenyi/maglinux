@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MagLin
+Comment=Start the MagLin data acquisition program
+Exec=/usr/local/bin/maglin-start
+Icon=/opt/maglin/maglin.ico
+Terminal=false
