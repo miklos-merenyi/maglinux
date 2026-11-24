@@ -85,7 +85,7 @@ LABEL linux
     APPEND initrd=/initrd.img root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw
 
 LABEL rescue
-    MENU LABEL Rescue system (read-only, root autologin)
+    MENU LABEL Rescue system (root autologin, SD card writable)
     KERNEL /vmlinuz
     APPEND initrd=/rescue/initramfs.gz console=ttyS0,115200 console=tty0
 EOF

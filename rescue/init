@@ -42,6 +42,9 @@ while [ $i -lt 30 ]; do
 done
 [ -n "$found" ] || panic "rescue/rescue.sqfs not found on any FAT partition"
 msg "found on $found"
+# The SD card's FAT partition is writable in the rescue system (/media/sdcard):
+# searched read-only above, so a card without rescue.sqfs is never written to
+mount -o remount,rw /mnt || msg "cannot remount $found read-write, it stays read-only"
 
 mkdir -p /lower /rw /newroot
 mount -t squashfs -o loop,ro /mnt/rescue/rescue.sqfs /lower || panic "cannot mount rescue.sqfs"
@@ -50,7 +53,7 @@ mkdir -p /rw/upper /rw/work
 mount -t overlay overlay -o lowerdir=/lower,upperdir=/rw/upper,workdir=/rw/work /newroot \
     || panic "cannot mount overlay"
 
-# Keep the boot partition reachable (read-only) in the rescue system
+# Keep the boot partition reachable (read-write) in the rescue system
 mkdir -p /newroot/media/sdcard
 mount --move /mnt /newroot/media/sdcard
 

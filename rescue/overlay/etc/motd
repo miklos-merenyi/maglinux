@@ -1,12 +1,11 @@
 
  maglinux RESCUE system (Debian 12, read-only squashfs + RAM overlay)
- All changes are lost on reboot.
+ Changes to the system are lost on reboot; changes under /media/sdcard are kept.
 
- Boot partition (read-only):  /media/sdcard
+ Boot partition (read-write): /media/sdcard
  Main system image:           /media/sdcard/rootfs.btrfs
 
  Inspect / repair the main system:
-   mount -o remount,rw /media/sdcard
    mkdir -p /mnt/root && mount -o loop /media/sdcard/rootfs.btrfs /mnt/root
    btrfs check /media/sdcard/rootfs.btrfs      (only while NOT mounted)
 
