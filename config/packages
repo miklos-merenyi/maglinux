@@ -52,13 +52,15 @@ dbus-x11
 mousepad
 
 # Pendrives: mounted when plugged in, in maguser's XFCE session (thunar-volman ->
-# udisks2, under /media/maguser/<label>); ntfs-3g for NTFS (FAT/exFAT: kernel).
+# udisks2, under /media/maguser/<label>); ntfs-3g for NTFS (FAT/exFAT: kernel);
+# eject to unmount and eject one from a terminal (sudo eject /dev/sdX).
 # gio (libglib2.0-bin) marks the desktop launchers as trusted, see
 # /usr/local/lib/maglinux/trust-launchers
 udisks2
 gvfs
 thunar-volman
 ntfs-3g
+eject
 libglib2.0-bin
 
 # MQTT support

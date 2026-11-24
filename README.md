@@ -225,6 +225,9 @@ No window opens; Thunar shows the drive in its side pane, where it can be ejecte
   (from `overlay/home/maguser/`), or Settings → Removable Drives and Media.
 * **No password:** `/etc/polkit-1/rules.d/50-plugdev-udisks2.rules` lets the `plugdev`
   group mount, eject and power off removable drives, also from the VNC session.
+* **Safe removal:** the eject button next to the drive in Thunar's side pane, or in a
+  terminal `udisksctl unmount -b /dev/sdX1 && udisksctl power-off -b /dev/sdX` (no
+  password) or `sudo eject /dev/sdX` (`eject` needs root for the device).
 * **Only on hot-plug:** a pendrive that is already in the device when it boots is not
   mounted automatically; click it in Thunar's side pane.
 * **Desktop launchers:** with gvfs, XFCE asks before running a launcher that is not
