@@ -30,6 +30,15 @@ if (( ${#debs[@]} )); then
     sudo rm -rf "$R/tmp/debs"
 fi
 
+# Hold the kernel: the card boots the kernel and initrd on the FAT partition (and the
+# rescue system has modules for it), so a kernel upgraded by apt would never boot and
+# could remove the running kernel's modules. A newer kernel comes with a rebuild
+# (make refresh). The installed packages are held, whichever version they are.
+mapfile -t kernel_pkgs < <(sudo chroot "$R" dpkg-query -W \
+    -f '${db:Status-Abbrev} ${Package}\n' 'linux-image-*' | awk '$1 == "ii" {print $2}')
+(( ${#kernel_pkgs[@]} )) || { echo "ERROR: no linux-image package installed" >&2; exit 1; }
+sudo chroot "$R" apt-mark hold "${kernel_pkgs[@]}"
+
 # fstab, hostname, hosts
 echo "/dev/loop0 / btrfs defaults,compress=zstd:3,noatime 0 1" | sudo tee "$R/etc/fstab" >/dev/null
 echo "$HOSTNAME_NEW" | sudo tee "$R/etc/hostname" >/dev/null

@@ -173,6 +173,9 @@ Set `APT_PROXY=` (empty) to download packages directly instead of through
 
 ### Notes
 
+* **The kernel is held on the device** (`apt-mark hold`): the card boots the kernel and
+  initrd on its FAT partition, so a kernel upgraded by apt would never boot. A newer
+  kernel comes with a rebuild (`make refresh && make`), which holds that version.
 * **A file deleted from `overlay/`, `rescue/` or `sdcard/` is not noticed** (only changed and new
   files are). Run `make clean` after deleting one.
 * **The two bootstraps need extra disk space**, roughly 1.5 GB in total, because they
