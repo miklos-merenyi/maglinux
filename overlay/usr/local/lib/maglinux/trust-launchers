@@ -1,0 +1,13 @@
+#!/bin/sh
+# Mark desktop launchers in ~/Desktop as trusted. With gvfs, XFCE stores a checksum
+# of each trusted launcher (metadata::xfce-exe-checksum) and asks before running one
+# without it; the launchers come with the image, so nobody marked them yet.
+# Usage: trust-launchers NAME.desktop...   (run from the session's autostart)
+for name in "$@"; do
+    f="$HOME/Desktop/$name"
+    [ -f "$f" ] || continue
+    sum=$(sha256sum "$f" | cut -d' ' -f1)
+    cur=$(gio info -a metadata::xfce-exe-checksum "$f" 2>/dev/null |
+          sed -n 's/^ *metadata::xfce-exe-checksum: //p')
+    [ "$cur" = "$sum" ] || gio set -t string "$f" metadata::xfce-exe-checksum "$sum"
+done

@@ -212,3 +212,21 @@ without booting the device:
   one of them can be up at a time, which is always the case on one device.
 * **More tunnels:** add `wg1.conf` to the card and run `sudo systemctl enable wg-quick@wg1` on
   the device.
+
+---
+
+## 7. Pendrives
+
+A pendrive plugged in while maguser's XFCE session runs is mounted at
+`/media/maguser/<label>` (thunar-volman and udisks2; FAT, exFAT and NTFS).
+No window opens; Thunar shows the drive in its side pane, where it can be ejected.
+
+* **Settings:** maguser's `~/.config/xfce4/xfconf/xfce-perchannel-xml/thunar-volman.xml`
+  (from `overlay/home/maguser/`), or Settings → Removable Drives and Media.
+* **No password:** `/etc/polkit-1/rules.d/50-plugdev-udisks2.rules` lets the `plugdev`
+  group mount, eject and power off removable drives, also from the VNC session.
+* **Only on hot-plug:** a pendrive that is already in the device when it boots is not
+  mounted automatically; click it in Thunar's side pane.
+* **Desktop launchers:** with gvfs, XFCE asks before running a launcher that is not
+  marked as trusted. `/usr/local/lib/maglinux/trust-launchers` marks the MagLin
+  launchers at every login (`~/.config/autostart/maglinux-trust-launchers.desktop`).

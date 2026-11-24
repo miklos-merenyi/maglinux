@@ -51,6 +51,16 @@ xfce4-terminal
 dbus-x11
 mousepad
 
+# Pendrives: mounted when plugged in, in maguser's XFCE session (thunar-volman ->
+# udisks2, under /media/maguser/<label>); ntfs-3g for NTFS (FAT/exFAT: kernel).
+# gio (libglib2.0-bin) marks the desktop launchers as trusted, see
+# /usr/local/lib/maglinux/trust-launchers
+udisks2
+gvfs
+thunar-volman
+ntfs-3g
+libglib2.0-bin
+
 # MQTT support
 mosquitto
 mosquitto-clients
