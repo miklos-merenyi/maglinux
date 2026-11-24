@@ -1,5 +1,5 @@
 // Let members of the netdev group manage NetworkManager connections without
-// a password, also from non-local sessions such as VNC (no logind seat).
+// a password, also from non-local sessions such as SSH (no logind seat).
 polkit.addRule(function(action, subject) {
     if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0 &&
         subject.isInGroup("netdev")) {

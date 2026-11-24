@@ -2,8 +2,6 @@
 Type=Application
 Name=MagLin
 Comment=Start the MagLin data acquisition program after the automatic login
-# Local display only (xfce4-session sets DISPLAY=:0.0): the VNC server (:1) also
-# runs an XFCE session for maguser
-Exec=sh -c "case \\$DISPLAY in :0|:0.*) exec /usr/local/bin/maglin-start;; esac"
+Exec=/usr/local/bin/maglin-start
 Icon=/opt/maglin/maglin.ico
 Terminal=false

@@ -19,7 +19,7 @@ isc-dhcp-client
 openssh-server
 network-manager
 network-manager-gnome
-tigervnc-standalone-server
+tigervnc-xorg-extension
 tigervnc-tools
 wireguard-tools
 iputils-ping

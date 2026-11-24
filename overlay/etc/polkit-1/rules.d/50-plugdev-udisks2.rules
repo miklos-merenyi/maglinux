@@ -1,5 +1,5 @@
 // Let members of the plugdev group mount, unmount, eject and power off removable
-// drives (pendrives) without a password, also from non-local sessions such as VNC
+// drives (pendrives) without a password, also from non-local sessions such as SSH
 // (no logind seat). System disks still need the admin password.
 polkit.addRule(function(action, subject) {
     var allowed = [

@@ -96,22 +96,10 @@ autologin-user-timeout=0
 autologin-session=xfce
 LIGHTDM
 
-# VNC password for the default user (~/.vnc/passwd, used by vncserver)
-sudo chroot "$R" install -d -m 700 -o "$USER_NAME" -g "$USER_NAME" "/home/$USER_NAME/.vnc"
-printf '%s\n' "$VNC_PASS" | sudo chroot "$R" vncpasswd -f | sudo tee "$R/home/$USER_NAME/.vnc/passwd" >/dev/null
-sudo chroot "$R" chown "$USER_NAME:$USER_NAME" "/home/$USER_NAME/.vnc/passwd"
-sudo chmod 600 "$R/home/$USER_NAME/.vnc/passwd"
-
-# Autostart VNC server on display :1 (port 5901) for the default user, reachable from the network
-echo ":1=$USER_NAME" | sudo tee "$R/etc/tigervnc/vncserver.users" >/dev/null
-sudo tee -a "$R/etc/tigervnc/vncserver-config-defaults" >/dev/null <<'VNCCFG'
-
-# maglinux: accept connections from the network, default desktop size
-$localhost = "no";
-$geometry = "1280x800";
-1;
-VNCCFG
-sudo chroot "$R" systemctl enable 'tigervncserver@:1.service'
+# VNC: the local X display is shared by Xorg itself (etc/X11/xorg.conf.d/50-maglinux-vnc.conf
+# in the overlay); its password file, readable only by root (Xorg runs as root)
+printf '%s\n' "$VNC_PASS" | sudo chroot "$R" vncpasswd -f | sudo tee "$R/etc/X11/vncpasswd" >/dev/null
+sudo chmod 600 "$R/etc/X11/vncpasswd"
 
 # WireGuard wg0, configured from the SD card (sdcard/config/wireguard/); the unit
 # is skipped while the card has no wg0.conf

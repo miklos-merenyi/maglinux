@@ -227,7 +227,7 @@ No window opens; Thunar shows the drive in its side pane, where it can be ejecte
 * **Settings:** maguser's `~/.config/xfce4/xfconf/xfce-perchannel-xml/thunar-volman.xml`
   (from `overlay/home/maguser/`), or Settings → Removable Drives and Media.
 * **No password:** `/etc/polkit-1/rules.d/50-plugdev-udisks2.rules` lets the `plugdev`
-  group mount, eject and power off removable drives, also from the VNC session.
+  group mount, eject and power off removable drives, also over SSH.
 * **Safe removal:** the eject button next to the drive in Thunar's side pane, or in a
   terminal `udisksctl unmount -b /dev/sdX1 && udisksctl power-off -b /dev/sdX` (no
   password) or `sudo eject /dev/sdX` (`eject` needs root for the device).
@@ -236,3 +236,19 @@ No window opens; Thunar shows the drive in its side pane, where it can be ejecte
 * **Desktop launchers:** with gvfs, XFCE asks before running a launcher that is not
   marked as trusted. `/usr/local/lib/maglinux/trust-launchers` marks the MagLin
   launchers at every login (`~/.config/autostart/maglinux-trust-launchers.desktop`).
+
+---
+
+## 8. VNC
+
+The local desktop (display `:0`, the automatic login of maguser) is shared over VNC
+on port **5901**; there is no separate VNC desktop. A VNC viewer and the screen of
+the device show the same session, with one mouse and keyboard.
+
+* **Password:** `VNC_PASS` in `config/settings.sh` (VNC passwords have at most 8
+  characters), stored in `/etc/X11/vncpasswd` (root only).
+* **How:** TigerVNC's Xorg module (`tigervnc-xorg-extension`), loaded by
+  `/etc/X11/xorg.conf.d/50-maglinux-vnc.conf`; the port and the password are set there.
+* **Change the password on the device:** `sudo vncpasswd /etc/X11/vncpasswd`, then
+  log out or reboot (the password is read when X starts).
+* **Resolution:** the device's own screen resolution.
