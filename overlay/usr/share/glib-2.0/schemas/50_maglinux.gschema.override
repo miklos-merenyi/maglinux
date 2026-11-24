@@ -1,0 +1,6 @@
+# maglinux defaults for GSettings (compiled by scripts/steps/rootfs.sh). Users can
+# still change them; their own settings (dconf) take precedence.
+
+# Mousepad: syntax highlighting with the Solarized Dark color scheme
+[org.xfce.mousepad.preferences.view]
+color-scheme='solarized-dark'

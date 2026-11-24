@@ -119,4 +119,7 @@ sudo chroot "$R" systemctl enable -q wg-quick@wg0.service
 # time-sync.target waits for the first NTP sync (wg-quick@ is ordered after it)
 sudo chroot "$R" systemctl enable -q systemd-time-wait-sync.service
 
+# GSettings defaults from the overlay (usr/share/glib-2.0/schemas/*.gschema.override)
+sudo chroot "$R" glib-compile-schemas --strict /usr/share/glib-2.0/schemas
+
 sudo chroot "$R" update-initramfs -u
