@@ -1,0 +1,3 @@
+# maglinux: the rtc group (maguser) may open the hardware clock, so maglin's
+# "hwclock --systohc" works without root (hwclock has CAP_SYS_TIME for setting it)
+SUBSYSTEM=="rtc", GROUP="rtc", MODE="0660"

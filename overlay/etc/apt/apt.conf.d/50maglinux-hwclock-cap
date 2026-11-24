@@ -1,0 +1,4 @@
+// maglinux: maglin (as maguser) runs "hwclock --systohc" after setting the clock
+// from GPS, so hwclock has the CAP_SYS_TIME file capability. An upgrade of
+// util-linux-extra replaces the file and drops it: set it again after every dpkg run.
+DPkg::Post-Invoke { "if [ -x /usr/sbin/hwclock ] && [ -x /usr/sbin/setcap ]; then /usr/sbin/setcap cap_sys_time+ep /usr/sbin/hwclock || true; fi"; };

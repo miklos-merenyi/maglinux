@@ -30,6 +30,9 @@ ca-certificates
 # NTP: WireGuard handshakes need a correct clock
 systemd-timesyncd
 
+# hwclock: maglin writes the GPS time to the hardware clock
+util-linux-extra
+
 # System tools
 polkitd
 logrotate
@@ -74,3 +77,4 @@ mosquitto-clients
 # Runtime dependencies of the local packages in debs/ (installed in the rootfs stage)
 libgtkmm-2.4-1v5
 libglade2-0
+libcap2-bin

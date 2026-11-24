@@ -50,9 +50,11 @@ ff02::1		ip6-allnodes
 ff02::2		ip6-allrouters
 HOSTS
 
-# Root password and default user
+# Root password and default user (dialout: serial ports; rtc: the hardware clock,
+# etc/udev/rules.d/50-maglinux-rtc.rules in the overlay)
+sudo chroot "$R" groupadd -r rtc
 sudo chroot "$R" useradd -m -s /bin/bash "$USER_NAME"
-for g in sudo audio video plugdev netdev users; do
+for g in sudo audio video plugdev netdev users dialout rtc; do
     if sudo chroot "$R" getent group "$g" >/dev/null; then
         sudo chroot "$R" usermod -aG "$g" "$USER_NAME"
     fi
@@ -106,6 +108,11 @@ sudo chmod 600 "$R/etc/X11/vncpasswd"
 sudo chroot "$R" systemctl enable -q wg-quick@wg0.service
 # time-sync.target waits for the first NTP sync (wg-quick@ is ordered after it)
 sudo chroot "$R" systemctl enable -q systemd-time-wait-sync.service
+
+# Clock: maglin (as maguser) sets it from GPS (settimeofday, CAP_SYS_TIME from the
+# maglin package) and then runs "hwclock --systohc", so hwclock gets CAP_SYS_TIME too;
+# etc/apt/apt.conf.d/50maglinux-hwclock-cap in the overlay sets it again after upgrades.
+sudo chroot "$R" setcap cap_sys_time+ep /usr/sbin/hwclock
 
 # GSettings defaults from the overlay (usr/share/glib-2.0/schemas/*.gschema.override)
 sudo chroot "$R" glib-compile-schemas --strict /usr/share/glib-2.0/schemas
