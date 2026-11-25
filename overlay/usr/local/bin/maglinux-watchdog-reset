@@ -1,0 +1,8 @@
+#!/bin/sh
+# maglinux-watchdog-reset - feed the hardware watchdog once, giving maglin another full
+# timeout before the machine is reset (maglinux-watchdogd; for the watchdog group).
+FIFO=/run/maglin-wd.fifo
+[ -p "$FIFO" ] || { echo "No watchdog service ($FIFO)." >&2; exit 1; }
+. /run/maglin-watchdog/state 2>/dev/null
+[ "$state" = active ] || { echo "The watchdog is not active (${state:-unknown})." >&2; exit 1; }
+echo RESET > "$FIFO" && echo "Watchdog reset: another ${timeout:-?} s before the machine is reset."

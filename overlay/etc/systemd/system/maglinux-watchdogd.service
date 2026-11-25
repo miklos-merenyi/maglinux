@@ -1,0 +1,12 @@
+[Unit]
+Description=maglinux watchdog service: feeds /dev/watchdog for maglin (/run/maglin-wd.fifo)
+# After the driver is loaded, before the desktop (maglin opens the FIFO at its start)
+After=maglinux-watchdog.service
+Before=display-manager.service
+
+[Service]
+ExecStart=/usr/local/sbin/maglinux-watchdogd
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

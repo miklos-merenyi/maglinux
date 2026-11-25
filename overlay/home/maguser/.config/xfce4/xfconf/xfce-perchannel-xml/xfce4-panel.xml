@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- maglinux: XFCE's default panel (/etc/xdg/xfce4/panel/default.xml) plus, in the
      top panel, the status line (plugin-23, genmon: /usr/local/bin/maglinux-status), the
-     maglin start/stop button (plugin-25, genmon: /usr/local/bin/maglinux-maglin-panel) and the
+     maglin start/stop button (plugin-25, genmon: /usr/local/bin/maglinux-maglin-panel), the
+     watchdog item (plugin-26, genmon: /usr/local/bin/maglinux-watchdog-panel) and the
      VNC on/off button (plugin-24, genmon: /usr/local/bin/maglinux-vnc-panel) -->
 
 <channel name="xfce4-panel" version="1.0">
@@ -24,6 +25,7 @@
         <value type="int" value="5"/>
         <value type="int" value="23"/>
         <value type="int" value="25"/>
+        <value type="int" value="26"/>
         <value type="int" value="24"/>
         <value type="int" value="6"/>
         <value type="int" value="7"/>
@@ -70,6 +72,7 @@
     </property>
     <property name="plugin-23" type="string" value="genmon"/>
     <property name="plugin-25" type="string" value="genmon"/>
+    <property name="plugin-26" type="string" value="genmon"/>
     <property name="plugin-24" type="string" value="genmon"/>
     <property name="plugin-6" type="string" value="systray">
         <property name="square-icons" type="bool" value="true"/>

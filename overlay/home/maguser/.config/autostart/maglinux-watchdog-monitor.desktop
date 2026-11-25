@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Watchdog alarms
+Comment=Pop-up alarms when maglin stops feeding the hardware watchdog
+Exec=/usr/local/bin/maglinux-watchdog-monitor
+NoDisplay=true
+Terminal=false

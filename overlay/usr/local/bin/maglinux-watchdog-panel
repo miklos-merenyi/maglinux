@@ -1,0 +1,25 @@
+#!/bin/sh
+# Watchdog item in the top panel (xfce4-genmon-plugin, ~/.config/xfce4/panel/genmon-26.rc):
+# seconds since maglin last fed the watchdog (maglinux-watchdogd), green / orange from
+# WARN1 / red from WARN2; "WD off" when stopped; nothing without a watchdog.
+# A click opens maglinux-watchdog-dialog (status, reset).
+WARN1=240 WARN2=300
+[ -r /etc/default/maglinux-watchdog ] && . /etc/default/maglinux-watchdog
+state=
+. /run/maglin-watchdog/state 2>/dev/null
+case "$state" in
+    active)
+        read -r up _ < /proc/uptime; age=$(( ${up%.*} - last ))
+        if   [ "$age" -ge "$WARN2" ]; then c="#e01b24"
+        elif [ "$age" -ge "$WARN1" ]; then c="#e66100"
+        else c="#26a269"; fi
+        echo "<txt> WD <span foreground=\"$c\"><b>${age} s</b></span> </txt>"
+        echo "<tool>Watchdog active: maglin fed it ${age} s ago. The machine is reset after ${timeout} s without a feed (alarms at ${WARN1} and ${WARN2} s). Click for details or to reset it.</tool>"
+        ;;
+    off)
+        echo '<txt> WD <span foreground="#9a9996">off</span> </txt>'
+        echo '<tool>Watchdog stopped (maglin is not running, or ended on purpose).</tool>'
+        ;;
+    *)  echo '<txt></txt>'; exit 0 ;;   # no watchdog (service or driver): show nothing
+esac
+echo '<txtclick>/usr/local/bin/maglinux-watchdog-dialog</txtclick>'

@@ -137,6 +137,8 @@ kver=$(cat "$B/kmod/kernel")
 sudo install -D -m 644 "$B/kmod/alim6117_wdt.ko" "$R/lib/modules/$kver/updates/alim6117_wdt.ko"
 sudo chroot "$R" depmod -a "$kver"
 sudo chroot "$R" systemctl enable -q maglinux-watchdog.service
+# Feeds the watchdog for maglin (watchdog=/run/maglin-wd.fifo), with alarms
+sudo chroot "$R" systemctl enable -q maglinux-watchdogd.service
 
 # Hostname from the SD card (config/hostname.cfg, written by image.sh), set at boot
 sudo chroot "$R" systemctl enable -q maglinux-hostname.service

@@ -1,0 +1,28 @@
+#!/bin/sh
+# maglinux-watchdog-dialog [alarm] - watchdog status with a "Reset watchdog" button
+# (the panel's WD item, and the alarm pop-ups of maglinux-watchdog-monitor).
+TITLE="Watchdog"
+state=
+. /run/maglin-watchdog/state 2>/dev/null
+if [ "$state" != active ]; then
+    zenity --info --title="$TITLE" --text="The watchdog is <b>${state:-not available}</b>."
+    exit 0
+fi
+read -r up _ < /proc/uptime; age=$(( ${up%.*} - last )); left=$(( timeout - age ))
+if [ "${1:-}" = alarm ]; then
+    head="<b>WATCHDOG ALARM</b>\n\nmaglin has not fed the watchdog for <b>${age} s</b>: it may be hung.\nThis machine will be <b>RESET in about ${left} s</b> (timeout ${timeout} s)."
+    icon=dialog-warning
+else
+    head="The watchdog is active. maglin fed it ${age} s ago.\nWithout a feed the machine is reset after ${timeout} s (in about ${left} s now)."
+    icon=dialog-information
+fi
+if zenity --question --title="$TITLE" --icon-name="$icon" --width=420 \
+        --text="$head\n\n<i>Reset watchdog</i> gives maglin another ${timeout} s." \
+        --ok-label="Reset watchdog" --cancel-label="Close"; then
+    if msg=$(/usr/local/bin/maglinux-watchdog-reset 2>&1); then
+        zenity --info --title="$TITLE" --text="$msg"
+    else
+        zenity --error --title="$TITLE" --text="$msg"
+    fi
+    xfce4-panel --plugin-event=genmon-26:refresh:bool:true 2>/dev/null || true
+fi

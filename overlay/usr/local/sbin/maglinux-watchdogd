@@ -1,0 +1,94 @@
+#!/bin/bash
+# maglinux-watchdogd - feeds the hardware watchdog (/dev/watchdog) on behalf of maglin
+# and watches it (run by maglinux-watchdogd.service, as root).
+#
+# maglin (watchdog=/run/maglin-wd.fifo in maglin.ini) writes commands to the FIFO:
+#   S      start: open /dev/watchdog (its timeout: /etc/modprobe.d/alim6117_wdt.conf)
+#   R      feed (maglin: once a second)
+#   Q      stop: maglin ends on purpose (magic close, no reset)
+#   RESET  feed once, asked for by a person (maglinux-watchdog-reset, the alarm pop-up)
+# If maglin hangs or crashes, the feeds stop: alarms to all terminals (wall) after
+# WARN1 and WARN2 seconds (/etc/default/maglinux-watchdog), and at the timeout the
+# hardware resets the machine.
+#
+# State for the panel and the pop-ups, in /run/maglin-watchdog/state:
+#   state=active|off|nodevice  last=<uptime s of the last feed>  timeout=<s>
+FIFO=/run/maglin-wd.fifo
+DIR=/run/maglin-watchdog
+DEV=/dev/watchdog
+WARN1=240 WARN2=300
+[ -r /etc/default/maglinux-watchdog ] && . /etc/default/maglinux-watchdog
+
+uptime_s() { local u _; read -r u _ < /proc/uptime; echo "${u%.*}"; }
+log() { echo "maglinux-watchdogd: $*"; }
+timeout_s() { cat /sys/class/watchdog/watchdog0/timeout 2>/dev/null || echo 0; }
+state=off last=0 warned=0 active=0
+write_state() {
+    printf 'state=%s\nlast=%s\ntimeout=%s\n' "$state" "$last" "$(timeout_s)" > "$DIR/state.tmp" &&
+        mv "$DIR/state.tmp" "$DIR/state"
+}
+
+feed() {
+    [ "$active" = 1 ] || return 0
+    printf 1 >&3
+    last=$(uptime_s) warned=0
+    state=active
+}
+start() {
+    if [ "$active" = 0 ]; then
+        # Only a real device: as root, "exec 3>" would create an ordinary file
+        if [ ! -c "$DEV" ] || ! exec 3>"$DEV"; then
+            log "cannot open $DEV (no watchdog driver?)"
+            state=nodevice; write_state; return
+        fi
+        active=1
+        log "watchdog started for maglin, timeout $(timeout_s) s"
+    fi
+    feed; write_state
+}
+stop() {
+    if [ "$active" = 1 ]; then
+        printf V >&3          # magic close: the timer stops, no reset
+        exec 3>&-
+        active=0
+        log "watchdog stopped (maglin ended on purpose)"
+    fi
+    state=off; write_state
+}
+alarm() {  # alarm <seconds since the last feed>
+    local t left
+    t=$(timeout_s); left=$(( t - $1 ))
+    wall <<MSG
+WATCHDOG ALARM on $(hostname): maglin has not fed the watchdog for $1 s.
+This machine will be RESET in about $left s (timeout $t s), unless maglin
+recovers. To give it another $t s: maglinux-watchdog-reset
+MSG
+    log "alarm: no feed for $1 s, reset in about $left s"
+}
+
+mkdir -p "$DIR"
+rm -f "$FIFO"
+mkfifo -m 0620 "$FIFO"
+chgrp watchdog "$FIFO"
+exec 4<>"$FIFO"       # read and write: no end of file when a writer closes
+write_state
+log "listening on $FIFO"
+trap 'stop; rm -f "$FIFO"; exit 0' TERM INT
+
+while :; do
+    if read -r -t 2 cmd <&4; then
+        case "$cmd" in
+            S) start ;;
+            R) feed ;;
+            Q) stop ;;
+            RESET) if [ "$active" = 1 ]; then feed; log "watchdog reset by hand"; fi ;;
+        esac
+    fi
+    if [ "$active" = 1 ]; then
+        age=$(( $(uptime_s) - last ))
+        if [ "$age" -ge "$WARN2" ] && [ "$warned" -lt 2 ]; then warned=2; alarm "$age"
+        elif [ "$age" -ge "$WARN1" ] && [ "$warned" -lt 1 ]; then warned=1; alarm "$age"
+        fi
+        write_state
+    fi
+done

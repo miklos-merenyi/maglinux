@@ -1,0 +1,24 @@
+#!/bin/sh
+# maglinux-watchdog-monitor - started with the desktop session (autostart): when maglin
+# has not fed the watchdog for WARN1 and again for WARN2 seconds
+# (/etc/default/maglinux-watchdog), opens the alarm pop-up (maglinux-watchdog-dialog
+# alarm, with "Reset watchdog"). maglinux-watchdogd warns the terminals (wall).
+WARN1=240 WARN2=300
+[ -r /etc/default/maglinux-watchdog ] && . /etc/default/maglinux-watchdog
+level=0 popup=
+while sleep 5; do
+    state=
+    . /run/maglin-watchdog/state 2>/dev/null
+    [ "$state" = active ] || { level=0; continue; }
+    read -r up _ < /proc/uptime; age=$(( ${up%.*} - last ))
+    if [ "$age" -lt "$WARN1" ]; then level=0; continue; fi
+    want=1; [ "$age" -ge "$WARN2" ] && want=2
+    [ "$level" -ge "$want" ] && continue
+    level=$want
+    if [ -n "$popup" ]; then                          # the second alarm replaces the first
+        pkill -P "$popup" 2>/dev/null; kill "$popup" 2>/dev/null
+    fi
+    /usr/local/bin/maglinux-watchdog-dialog alarm &
+    popup=$!
+    xfce4-panel --plugin-event=genmon-26:refresh:bool:true 2>/dev/null || true
+done
