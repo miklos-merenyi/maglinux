@@ -1,0 +1,5 @@
+Command=/usr/local/bin/maglinux-vnc-panel
+UseLabel=0
+UpdatePeriod=5000
+Text=(genmon)
+Font=Sans 10

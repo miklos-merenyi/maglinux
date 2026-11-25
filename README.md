@@ -252,7 +252,7 @@ the device show the same session, with one mouse and keyboard.
 * **Change the password on the device:** `sudo vncpasswd /etc/X11/vncpasswd`, then
   log out or reboot (the password is read when X starts).
 * **Resolution:** the device's own screen resolution.
-* **On/off:** the "VNC On/Off" icon on maguser's desktop asks, then switches remote
+* **On/off:** the "VNC on/off" button in the top panel (next to the status line) asks, then switches remote
   access without a password (polkit, local session) and without restarting the
   desktop: "off" drops port 5901 with an nftables rule and closes open VNC
   connections. The choice is kept across reboots. From a terminal:
@@ -316,3 +316,18 @@ dns=192.168.1.1 8.8.8.8
 * **USB serial adapters (FTDI):** `/etc/udev/rules.d/50-maglinux-usb-serial-latency.rules`
   sets their `latency_timer` from 16 ms to 1 ms, so received bytes are passed on
   without that delay. Check with `cat /sys/bus/usb-serial/devices/ttyUSB0/latency_timer`.
+
+---
+
+## 12. Status line in the panel
+
+The top panel shows `hostname │ IP address │ load │ maglin running/stopped` (red when
+maglin is stopped), updated every 5 seconds, and next to it the VNC on/off button
+(section 8); the tooltip adds VNC on/off, all addresses,
+memory, free space on the SD card, CPU temperature (if the hardware reports it),
+uptime and the time.
+
+* **Script:** `/usr/local/bin/maglinux-status`, run by the panel's Generic Monitor
+  plugin (`xfce4-genmon-plugin`, settings in `~/.config/xfce4/panel/genmon-23.rc`).
+* **Panel layout:** maguser's `~/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml`
+  (from `overlay/home/maguser/`) is XFCE's default panel plus this plugin.

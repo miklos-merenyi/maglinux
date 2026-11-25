@@ -1,0 +1,12 @@
+#!/bin/sh
+# VNC on/off button in the top panel (xfce4-genmon-plugin, see
+# ~/.config/xfce4/panel/genmon-24.rc): shows the state; a click opens the switch
+# (maglinux-vnc-switch), which refreshes this plugin afterwards.
+if [ "$(/usr/local/sbin/maglinux-vnc status 2>/dev/null)" = off ]; then
+    echo '<txt> VNC <span foreground="#e01b24"><b>off</b></span> </txt>'
+    echo '<tool>Remote access over VNC is OFF. Click to turn it on.</tool>'
+else
+    echo '<txt> VNC <span foreground="#26a269"><b>on</b></span> </txt>'
+    echo '<tool>Remote access over VNC is ON (port 5901). Click to turn it off.</tool>'
+fi
+echo '<txtclick>/usr/local/bin/maglinux-vnc-switch</txtclick>'

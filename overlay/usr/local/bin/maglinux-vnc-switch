@@ -1,6 +1,6 @@
 #!/bin/sh
-# Desktop switch for remote access over VNC: shows whether it is on and asks
-# before switching it (maglinux-vnc, run with pkexec; polkit allows it without a
+# Switch for remote access over VNC (the VNC button in the top panel,
+# maglinux-vnc-panel): shows whether it is on and asks before switching it (maglinux-vnc, run with pkexec; polkit allows it without a
 # password in the local session, see org.maglinux.vnc.policy).
 HELPER=/usr/local/sbin/maglinux-vnc
 TITLE="Remote access (VNC)"
@@ -24,3 +24,6 @@ else
         zenity --error --title="$TITLE" --text="Could not turn remote access on."
     fi
 fi
+
+# Show the new state in the panel button at once
+xfce4-panel --plugin-event=genmon-24:refresh:bool:true 2>/dev/null || true

@@ -1,0 +1,34 @@
+#!/bin/sh
+# Status line for the top panel (xfce4-genmon-plugin, every 5 s, see
+# ~/.config/xfce4/panel/genmon-23.rc): hostname, IP address, load and whether
+# maglin runs; details in the tooltip. Output: genmon's <txt> and <tool>.
+# (VNC on/off has its own button next to it: maglinux-vnc-panel.)
+
+host=$(hostname)
+# The address used for the default route, else the first global one
+ip=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+[ -n "$ip" ] || ip=$(ip -4 -o addr show scope global 2>/dev/null | awk '{sub("/.*", "", $4); print $4; exit}')
+[ -n "$ip" ] || ip='<span foreground="#e5a50a">no network</span>'
+read -r load1 load5 load15 _ < /proc/loadavg
+if [ "$(/usr/local/sbin/maglinux-vnc status 2>/dev/null)" = off ]; then vnc="VNC off"; else vnc="VNC on"; fi
+if pgrep -x maglin >/dev/null; then
+    maglin="maglin running"
+else
+    maglin='<span foreground="#ff6b6b">maglin stopped</span>'
+fi
+echo "<txt> $host │ $ip │ load $load1 │ $maglin </txt>"
+
+# Tooltip
+mem=$(awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {printf "%d of %d MiB used", (t-a)/1024, t/1024}' /proc/meminfo)
+card=$(df -h --output=avail,size /run/sdcard 2>/dev/null | awk 'NR==2 {print $1 " free of " $2}')
+up=$(awk '{d=int($1/86400); h=int($1%86400/3600); m=int($1%3600/60); printf (d ? d " d " : "") "%d h %d min", h, m}' /proc/uptime)
+temp=
+for z in /sys/class/thermal/thermal_zone*/temp; do
+    [ -r "$z" ] || continue
+    temp=$(awk '{printf "%.0f °C", $1/1000}' "$z"); break
+done
+addrs=$(ip -4 -br addr show 2>/dev/null | awk '$1 != "lo" {printf "\n  %-8s %s", $1, $3}')
+printf '<tool>%s  (%s)\nAddresses:%s\nLoad:     %s  %s  %s (1, 5, 15 min)\nMemory:   %s\nSD card:  %s\n%sUptime:   %s\nVNC:      %s\nmaglin:   %s</tool>\n' \
+    "$host" "$(date '+%Y-%m-%d %H:%M:%S %Z')" "${addrs:-  none}" "$load1" "$load5" "$load15" \
+    "$mem" "${card:-not mounted}" "${temp:+CPU temp: $temp
+}" "$up" "${vnc#VNC }" "$(pgrep -x maglin >/dev/null && echo running || echo stopped)"

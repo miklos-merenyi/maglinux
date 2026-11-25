@@ -1,7 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=VNC On/Off
-Comment=Switch remote access over VNC on or off
-Exec=/usr/local/bin/maglinux-vnc-switch
-Icon=network-server
-Terminal=false

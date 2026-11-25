@@ -56,6 +56,8 @@ lightdm-gtk-greeter
 xfce4
 xfce4-terminal
 dbus-x11
+# Status line in the top panel (maglinux-status: hostname, IP, load, VNC, maglin)
+xfce4-genmon-plugin
 mousepad
 
 # Pendrives: mounted when plugged in, in maguser's XFCE session (thunar-volman ->
