@@ -54,7 +54,8 @@ sudo fsck.fat -n "$PART_DEV" >/dev/null
 
 mkdir -p "$MNT"
 sudo mount "$PART_DEV" "$MNT"
-sudo mkdir "$MNT/data"
+# maglin's data and dres directories (/opt/maglin/data and /opt/maglin/dres link here)
+sudo mkdir "$MNT/data" "$MNT/dres"
 # Files for the card's user-editable area (config/wireguard/, ...)
 sudo cp -r "$REPO/sdcard/." "$MNT/"
 
