@@ -37,7 +37,8 @@
       </property>
     </property>
     <property name="panel-2" type="empty">
-      <property name="autohide-behavior" type="uint" value="1"/>
+      <!-- maglinux: always hidden until the mouse touches the bottom edge (default: 1, intelligently) -->
+      <property name="autohide-behavior" type="uint" value="2"/>
       <property name="position" type="string" value="p=10;x=0;y=0"/>
       <property name="length" type="uint" value="1"/>
       <property name="position-locked" type="bool" value="true"/>
