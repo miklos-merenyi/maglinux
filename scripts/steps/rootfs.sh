@@ -18,18 +18,6 @@ shopt -u nullglob dotglob
 sudo find "$R/etc/initramfs-tools/hooks" "$R/etc/initramfs-tools/scripts" \
     -type f ! -name ORDER -exec chmod 755 {} +
 
-# Local packages (debs/*.deb). dpkg does not download anything: their dependencies
-# must be listed in config/packages, otherwise the build fails here.
-shopt -s nullglob
-debs=("$REPO"/debs/*.deb)
-shopt -u nullglob
-if (( ${#debs[@]} )); then
-    sudo mkdir -p "$R/tmp/debs"
-    sudo cp "${debs[@]}" "$R/tmp/debs/"
-    sudo chroot "$R" sh -c 'dpkg -i /tmp/debs/*.deb'
-    sudo rm -rf "$R/tmp/debs"
-fi
-
 # Hold the kernel: the card boots the kernel and initrd on the FAT partition (and the
 # rescue system has modules for it), so a kernel upgraded by apt would never boot and
 # could remove the running kernel's modules. A newer kernel comes with a rebuild
@@ -76,6 +64,19 @@ if [[ -d $REPO/overlay/home/$USER_NAME ]]; then
     sudo chroot "$R" chown -R -h "$USER_NAME:$USER_NAME" "/home/$USER_NAME"
     # No group/other write access (symlinks are skipped: chmod would follow them)
     sudo find "$H" -mindepth 1 \( -type d -o -type f \) -exec chmod go-w {} +
+fi
+
+# Local packages (debs/*.deb), after the default user exists (the maglin package gives
+# it /opt/maglin). dpkg does not download anything: their dependencies must be listed
+# in config/packages, otherwise the build fails here.
+shopt -s nullglob
+debs=("$REPO"/debs/*.deb)
+shopt -u nullglob
+if (( ${#debs[@]} )); then
+    sudo mkdir -p "$R/tmp/debs"
+    sudo cp "${debs[@]}" "$R/tmp/debs/"
+    sudo chroot "$R" sh -c 'dpkg -i /tmp/debs/*.deb'
+    sudo rm -rf "$R/tmp/debs"
 fi
 
 # The SD card's FAT partition (/run/sdcard, mounted in the initramfs) belongs to the
