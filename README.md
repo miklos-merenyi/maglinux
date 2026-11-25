@@ -324,14 +324,14 @@ dns=192.168.1.1 8.8.8.8
 
 ## 12. Status line in the panel
 
-The top panel shows the hostname; hovering over it shows the IP address, the load and
-the other details (updated every 5 seconds). Next to it are buttons:
+The top panel shows "System info"; hovering over it shows the hostname, the IP address,
+the load and the other details (updated every 5 seconds). Next to it are buttons:
 
 * **maglin running/stopped** (green/red): a click stops maglin (after asking,
   `maglin-stop`) or starts it (`maglin-start`).
 * **VNC on/off** (green/red): a click switches remote access (section 8).
 
-The hostname's tooltip: the IP address, maglin and VNC, all addresses, the load,
+The "System info" tooltip: the hostname, the IP address, maglin and VNC, all addresses, the load,
 memory, free space on the SD card, CPU temperature (if the hardware reports it),
 uptime and the time.
 

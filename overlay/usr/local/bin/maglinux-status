@@ -1,7 +1,7 @@
 #!/bin/sh
 # Status line for the top panel (xfce4-genmon-plugin, every 5 s, see
-# ~/.config/xfce4/panel/genmon-23.rc): the hostname; the IP address, load and the other
-# details (also maglin and VNC) in the tooltip. Output: genmon's <txt> and <tool>.
+# ~/.config/xfce4/panel/genmon-23.rc): "System info"; the hostname, IP address, load and
+# the other details (also maglin and VNC) in its tooltip. Output: genmon's <txt> and <tool>.
 # (maglin and VNC have their own buttons next to it: maglinux-maglin-panel,
 # maglinux-vnc-panel.)
 
@@ -12,7 +12,7 @@ ip=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
 [ -n "$ip" ] || ip='<span foreground="#e5a50a">no network</span>'
 read -r load1 load5 load15 _ < /proc/loadavg
 if [ "$(/usr/local/sbin/maglinux-vnc status 2>/dev/null)" = off ]; then vnc="VNC off"; else vnc="VNC on"; fi
-echo "<txt> $host </txt>"
+echo "<txt> System info </txt>"
 
 # Tooltip
 mem=$(awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {printf "%d of %d MiB used", (t-a)/1024, t/1024}' /proc/meminfo)
