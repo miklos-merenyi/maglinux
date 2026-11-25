@@ -1,0 +1,12 @@
+#!/bin/sh
+# maglin start/stop button in the top panel (xfce4-genmon-plugin, see
+# ~/.config/xfce4/panel/genmon-25.rc): shows whether maglin runs; a click opens
+# maglinux-maglin-switch (maglin-start / maglin-stop), which refreshes it afterwards.
+if pgrep -x maglin >/dev/null; then
+    echo '<txt> maglin <span foreground="#26a269"><b>running</b></span> </txt>'
+    echo '<tool>maglin is running. Click to stop it.</tool>'
+else
+    echo '<txt> maglin <span foreground="#e01b24"><b>stopped</b></span> </txt>'
+    echo '<tool>maglin is not running. Click to start it.</tool>'
+fi
+echo '<txtclick>/usr/local/bin/maglinux-maglin-switch</txtclick>'

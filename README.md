@@ -321,13 +321,19 @@ dns=192.168.1.1 8.8.8.8
 
 ## 12. Status line in the panel
 
-The top panel shows `hostname │ IP address │ load │ maglin running/stopped` (red when
-maglin is stopped), updated every 5 seconds, and next to it the VNC on/off button
-(section 8); the tooltip adds VNC on/off, all addresses,
+The top panel shows `hostname │ IP address │ load`, updated every 5 seconds, and next
+to it two buttons:
+
+* **maglin running/stopped** (green/red): a click stops maglin (after asking,
+  `maglin-stop`) or starts it (`maglin-start`).
+* **VNC on/off** (green/red): a click switches remote access (section 8).
+
+The status line's tooltip adds maglin and VNC, all addresses,
 memory, free space on the SD card, CPU temperature (if the hardware reports it),
 uptime and the time.
 
-* **Script:** `/usr/local/bin/maglinux-status`, run by the panel's Generic Monitor
-  plugin (`xfce4-genmon-plugin`, settings in `~/.config/xfce4/panel/genmon-23.rc`).
+* **Scripts:** `/usr/local/bin/maglinux-status`, `maglinux-maglin-panel` and
+  `maglinux-vnc-panel`, run by the panel's Generic Monitor plugins
+  (`xfce4-genmon-plugin`, settings in `~/.config/xfce4/panel/genmon-23/25/24.rc`).
 * **Panel layout:** maguser's `~/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml`
   (from `overlay/home/maguser/`) is XFCE's default panel plus this plugin.
