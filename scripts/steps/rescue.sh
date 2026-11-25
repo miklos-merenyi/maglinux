@@ -38,19 +38,21 @@ printf '127.0.0.1\tlocalhost\n127.0.1.1\t%s\n::1\t\tlocalhost ip6-localhost ip6-
 : | sudo tee "$root/etc/fstab" >/dev/null
 echo "root:$RESCUE_ROOT_PASS" | sudo chroot "$root" chpasswd
 sudo chroot "$root" systemctl enable -q systemd-networkd systemd-resolved
-# WireGuard and the hostname: the main system's services (config from the card),
+# WireGuard, the hostname and the wired network: the main system's services (config from the card),
 # with the card path set by rescue/overlay/.../<service>.service.d/
 for f in usr/local/sbin/maglinux-wireguard-import \
          etc/systemd/system/maglinux-wireguard-import.service \
          etc/systemd/system/wg-quick@.service.d/50-maglinux-sdcard.conf \
          usr/local/sbin/maglinux-hostname \
-         etc/systemd/system/maglinux-hostname.service; do
+         etc/systemd/system/maglinux-hostname.service \
+         usr/local/sbin/maglinux-network \
+         etc/systemd/system/maglinux-network.service; do
     sudo install -D -m "$(stat -c %a "$REPO/overlay/$f")" "$REPO/overlay/$f" "$root/$f"
 done
 # The rescue system (no maglin/GPS) sets its clock with NTP; WireGuard waits for the
 # first sync, at most 2 minutes (rescue/overlay/.../systemd-time-wait-sync.service.d/)
 sudo chroot "$root" systemctl enable -q wg-quick@wg0.service systemd-time-wait-sync.service \
-    maglinux-hostname.service
+    maglinux-hostname.service maglinux-network.service
 # Per-boot identity: no baked-in machine-id or ssh host keys
 : | sudo tee "$root/etc/machine-id" >/dev/null
 sudo rm -f "$root"/etc/ssh/ssh_host_*

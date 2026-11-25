@@ -276,3 +276,30 @@ The image writes it with `HOSTNAME_NEW` from `config/settings.sh`.
   `journalctl -u maglinux-hostname`.
 * **After editing on the device:** reboot. Restarting the service would change the
   name under the running desktop.
+
+---
+
+## 10. Fixed IP address (wired network)
+
+The wired network uses DHCP unless `config/network.cfg` on the SD card's FAT partition
+(`/run/sdcard/config/network.cfg` on the device) sets a fixed address. Copy
+`config/network.cfg.example` to `network.cfg` and edit it:
+
+```
+address=192.168.1.50/24
+gateway=192.168.1.1
+dns=192.168.1.1 8.8.8.8
+```
+
+* **`address`** with the prefix length is required for a fixed address; `gateway` and
+  `dns` (separated by spaces or commas) are optional. `#` starts a comment; Windows
+  line endings are fine.
+* **Applied at every boot** by `maglinux-network.service`, before the network starts:
+  it writes the NetworkManager connection `maglinux-wired` (used for every wired
+  interface), or removes it for DHCP.
+* **Rescue system:** the same file, through systemd-networkd
+  (`/etc/systemd/network/40-maglinux-wired.network`).
+* **Back to DHCP:** delete `network.cfg` (or its `address` line) and reboot. An invalid
+  value also means DHCP; the reason is in `journalctl -u maglinux-network`.
+* **WiFi** is not affected: set a fixed address there in the connection's settings
+  (network icon in the panel → Edit Connections).

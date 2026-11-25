@@ -111,6 +111,8 @@ sudo chroot "$R" systemctl enable -q wg-quick@wg0.service
 
 # Hostname from the SD card (config/hostname.cfg, written by image.sh), set at boot
 sudo chroot "$R" systemctl enable -q maglinux-hostname.service
+# Wired network from the SD card (config/network.cfg: fixed address, otherwise DHCP)
+sudo chroot "$R" systemctl enable -q maglinux-network.service
 
 # Clock: maglin (as maguser) sets it from GPS (settimeofday, CAP_SYS_TIME from the
 # maglin package) and then runs "hwclock --systohc", so hwclock gets CAP_SYS_TIME too;

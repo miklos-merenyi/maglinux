@@ -1,0 +1,81 @@
+#!/bin/sh
+# Wired network from the SD card's FAT partition (config/network.cfg):
+#   address=192.168.1.50/24      fixed IPv4 address with prefix length; without it: DHCP
+#   gateway=192.168.1.1          optional
+#   dns=192.168.1.1 8.8.8.8      optional, separated by spaces or commas
+# "#" starts a comment; Windows line endings and a UTF-8 BOM are fine. A missing
+# file, no address or an invalid value means DHCP (an invalid value is logged).
+# Writes a NetworkManager connection (main system) or a systemd-networkd .network
+# file (rescue system, NETWORK_BACKEND=networkd), or removes it for DHCP.
+# Run at boot by maglinux-network.service, before the network starts.
+set -eu
+# The rescue system sets both (the card is at /media/sdcard there)
+CFG="${NETWORK_CFG:-/run/sdcard/config/network.cfg}"
+BACKEND="${NETWORK_BACKEND:-networkmanager}"
+NM_FILE=/etc/NetworkManager/system-connections/maglinux-wired.nmconnection
+NETWORKD_FILE=/etc/systemd/network/40-maglinux-wired.network
+
+dhcp() {
+    rm -f "$NM_FILE" "$NETWORKD_FILE"
+    echo "wired network: DHCP ($1)"
+    exit 0
+}
+invalid() { echo "$CFG: invalid $1 '$2', using DHCP" >&2; dhcp "invalid $CFG"; }
+
+ipv4() {    # dotted quad, each part 0-255
+    printf '%s\n' "$1" | grep -Eqx '([0-9]{1,3}\.){3}[0-9]{1,3}' || return 1
+    for p in $(printf '%s' "$1" | tr . ' '); do [ "$p" -le 255 ] || return 1; done
+}
+
+[ -f "$CFG" ] || dhcp "no $CFG"
+address= gateway= dns=
+while IFS= read -r line; do
+    line=$(printf '%s' "$line" | sed -e 's/^\xEF\xBB\xBF//' -e 's/\r$//' -e 's/#.*//' \
+                                     -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    [ -n "$line" ] || continue
+    key=$(printf '%s' "${line%%=*}" | sed 's/[[:space:]]*$//')
+    value=$(printf '%s' "${line#*=}" | sed 's/^[[:space:]]*//')
+    case "$key" in
+        address) address=$value ;;
+        gateway) gateway=$value ;;
+        dns)     dns=$(printf '%s' "$value" | tr ',' ' ' | tr -s ' ') ;;
+        *) echo "$CFG: unknown setting '$key', ignored" >&2 ;;
+    esac
+done < "$CFG"
+
+[ -n "$address" ] || dhcp "no address in $CFG"
+case "$address" in */*) ;; *) invalid address "$address" ;; esac
+prefix=${address#*/}
+ipv4 "${address%/*}" || invalid address "$address"
+printf '%s\n' "$prefix" | grep -Eqx '[0-9]{1,2}' && [ "$prefix" -ge 1 ] && [ "$prefix" -le 32 ] ||
+    invalid address "$address"
+[ -z "$gateway" ] || ipv4 "$gateway" || invalid gateway "$gateway"
+for d in $dns; do ipv4 "$d" || invalid dns "$d"; done
+
+case "$BACKEND" in
+    networkmanager)
+        rm -f "$NETWORKD_FILE"
+        mkdir -p "${NM_FILE%/*}"
+        # Applies to every wired interface; NetworkManager then creates no DHCP
+        # "Wired connection 1" for it
+        ( umask 077; {
+            printf '[connection]\nid=maglinux-wired\ntype=ethernet\nautoconnect=true\n'
+            printf 'autoconnect-priority=100\n\n'
+            printf '[ipv4]\nmethod=manual\naddress1=%s%s\n' "$address" "${gateway:+,$gateway}"
+            [ -z "$dns" ] || printf 'dns=%s;\n' "$(printf '%s' "$dns" | tr ' ' ';')"
+            printf '\n[ipv6]\nmethod=auto\n'
+          } > "$NM_FILE" )
+        ;;
+    networkd)
+        rm -f "$NM_FILE"
+        mkdir -p "${NETWORKD_FILE%/*}"
+        # Sorts before 50-wired.network (DHCP), so it wins for the wired interfaces
+        {
+            printf '[Match]\nType=ether\nName=en* eth*\n\n[Network]\nAddress=%s\n' "$address"
+            [ -z "$gateway" ] || printf 'Gateway=%s\n' "$gateway"
+            for d in $dns; do printf 'DNS=%s\n' "$d"; done
+        } > "$NETWORKD_FILE"
+        ;;
+    *) echo "unknown NETWORK_BACKEND '$BACKEND'" >&2; exit 1 ;;
+esac
+echo "wired network: fixed address $address${gateway:+, gateway $gateway}${dns:+, DNS $dns} (from $CFG)"

@@ -1,0 +1,8 @@
+# Wired network of the device (also used by the rescue system). To use a fixed
+# address, copy this file to network.cfg and edit it. Without network.cfg, or
+# without an address in it, the device gets its address with DHCP.
+# Read at every boot.
+
+address=192.168.1.50/24
+gateway=192.168.1.1
+dns=192.168.1.1 8.8.8.8

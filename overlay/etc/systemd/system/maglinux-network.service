@@ -1,0 +1,13 @@
+[Unit]
+Description=Wired network settings from the SD card (/run/sdcard/config/network.cfg)
+# Before the network starts, so the fixed address (or DHCP) applies from the start
+Wants=network-pre.target
+Before=network-pre.target NetworkManager.service systemd-networkd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/maglinux-network
+
+[Install]
+WantedBy=multi-user.target
