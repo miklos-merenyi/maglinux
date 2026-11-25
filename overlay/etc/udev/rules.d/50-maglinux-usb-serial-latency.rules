@@ -1,0 +1,4 @@
+# maglinux: USB serial adapters with a latency timer (FTDI) hold received bytes for
+# up to 16 ms by default before passing them on; 1 ms makes serial data arrive
+# without that delay (slightly more USB traffic).
+ACTION=="add", SUBSYSTEM=="usb-serial", TEST=="latency_timer", ATTR{latency_timer}="1"

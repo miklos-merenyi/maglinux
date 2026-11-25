@@ -303,3 +303,16 @@ dns=192.168.1.1 8.8.8.8
   value also means DHCP; the reason is in `journalctl -u maglinux-network`.
 * **WiFi** is not affected: set a fixed address there in the connection's settings
   (network icon in the panel → Edit Connections).
+
+---
+
+## 11. maglin's priority and serial timing
+
+* **Priority:** `maglin-start` (from the maglin package) starts maglin with
+  `nice -n -10`. maguser may do that without root:
+  `/etc/security/limits.d/50-maglinux-nice.conf` allows nice values down to -10,
+  applied at login. Another level: set `MAGLIN_NICE` (e.g. `MAGLIN_NICE=-5
+  maglin-start`); below -10 needs a lower limit in that file.
+* **USB serial adapters (FTDI):** `/etc/udev/rules.d/50-maglinux-usb-serial-latency.rules`
+  sets their `latency_timer` from 16 ms to 1 ms, so received bytes are passed on
+  without that delay. Check with `cat /sys/bus/usb-serial/devices/ttyUSB0/latency_timer`.
