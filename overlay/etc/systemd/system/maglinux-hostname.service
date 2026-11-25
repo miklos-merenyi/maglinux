@@ -1,0 +1,14 @@
+[Unit]
+Description=Set the hostname from the SD card (/run/sdcard/config/hostname.cfg)
+# Before the network (DHCP sends the hostname) and the X server (its login
+# cookies are tied to the hostname)
+Wants=network-pre.target
+Before=network-pre.target NetworkManager.service systemd-networkd.service display-manager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/maglinux-hostname
+
+[Install]
+WantedBy=multi-user.target

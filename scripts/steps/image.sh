@@ -58,6 +58,13 @@ sudo mount "$PART_DEV" "$MNT"
 sudo mkdir "$MNT/data" "$MNT/dres"
 # Files for the card's user-editable area (config/wireguard/, ...)
 sudo cp -r "$REPO/sdcard/." "$MNT/"
+# The device's hostname, editable on the card (read at boot by maglinux-hostname)
+sudo mkdir -p "$MNT/config"
+sudo tee "$MNT/config/hostname.cfg" >/dev/null <<EOF
+# Hostname of this device: letters, digits and hyphens, at most 63 characters.
+# The rescue system uses it with -rescue appended. Read at every boot.
+$HOSTNAME_NEW
+EOF
 
 # Kernel, initrd, Btrfs image
 sudo mkdir -p "$MNT/boot/syslinux"

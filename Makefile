@@ -42,10 +42,12 @@ IMAGE       := $(B)/sdcard-8g.img
 MAKEFLAGS += -L
 tree = $(shell find $(1) ! -type d)
 
-# Main-system overlay files the rescue system reuses (WireGuard import)
+# Main-system overlay files the rescue system reuses (WireGuard import, hostname)
 RESCUE_SHARED := overlay/usr/local/sbin/maglinux-wireguard-import \
 	overlay/etc/systemd/system/maglinux-wireguard-import.service \
-	overlay/etc/systemd/system/wg-quick@.service.d/50-maglinux-sdcard.conf
+	overlay/etc/systemd/system/wg-quick@.service.d/50-maglinux-sdcard.conf \
+	overlay/usr/local/sbin/maglinux-hostname \
+	overlay/etc/systemd/system/maglinux-hostname.service
 
 .PHONY: all base rootfs btrfs rescue-base rescue image refresh run clean distclean
 all: image

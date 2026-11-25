@@ -109,6 +109,9 @@ sudo chroot "$R" systemctl enable -q maglinux-vnc.service
 # is skipped while the card has no wg0.conf
 sudo chroot "$R" systemctl enable -q wg-quick@wg0.service
 
+# Hostname from the SD card (config/hostname.cfg, written by image.sh), set at boot
+sudo chroot "$R" systemctl enable -q maglinux-hostname.service
+
 # Clock: maglin (as maguser) sets it from GPS (settimeofday, CAP_SYS_TIME from the
 # maglin package) and then runs "hwclock --systohc", so hwclock gets CAP_SYS_TIME too;
 # etc/apt/apt.conf.d/50maglinux-hwclock-cap in the overlay sets it again after upgrades.

@@ -1,0 +1,36 @@
+#!/bin/sh
+# Set the hostname from the SD card's FAT partition (config/hostname.cfg): the first
+# line that is not empty or a "#" comment. Windows line endings and a UTF-8 BOM are
+# fine. Valid: letters, digits and hyphens, at most 63 characters, no hyphen at
+# either end. Without the file, or with an invalid name, the hostname stays as it is.
+# Updates the running hostname, /etc/hostname, the 127.0.1.1 line of /etc/hosts and
+# the VNC desktop name. Run at boot by maglinux-hostname.service.
+set -eu
+# The rescue system sets both (the card is at /media/sdcard, its name gets -rescue)
+CFG="${HOSTNAME_CFG:-/run/sdcard/config/hostname.cfg}"
+SUFFIX="${HOSTNAME_SUFFIX:-}"
+VNC_CONF=/etc/X11/xorg.conf.d/50-maglinux-vnc.conf
+
+[ -f "$CFG" ] || { echo "$CFG not found, hostname stays $(hostname)"; exit 0; }
+name=$(sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' -e 's/#.*//' \
+           -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$CFG" |
+       grep -m1 . | tr '[:upper:]' '[:lower:]' || true)
+if ! printf '%s\n' "$name" | grep -Eqx '[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?'; then
+    echo "$CFG: invalid hostname '$name' (letters, digits, hyphens, max. 63)," \
+         "hostname stays $(hostname)" >&2
+    exit 0
+fi
+if [ -n "$SUFFIX" ]; then
+    base=$(printf '%s' "$name" | cut -c1-$((63 - ${#SUFFIX})) | sed 's/-*$//')
+    name="$base$SUFFIX"
+fi
+
+printf '%s\n' "$name" > /etc/hostname
+printf '%s' "$name" > /proc/sys/kernel/hostname
+if grep -q '^127\.0\.1\.1[[:space:]]' /etc/hosts; then
+    sed -i "s/^127\.0\.1\.1[[:space:]].*/127.0.1.1\t$name/" /etc/hosts
+else
+    printf '127.0.1.1\t%s\n' "$name" >> /etc/hosts
+fi
+[ -f "$VNC_CONF" ] && sed -i "s/^\([[:space:]]*Option \"desktop\" \)\".*\"/\1\"$name\"/" "$VNC_CONF"
+echo "hostname set to $name (from $CFG)"

@@ -257,3 +257,22 @@ the device show the same session, with one mouse and keyboard.
   desktop: "off" drops port 5901 with an nftables rule and closes open VNC
   connections. The choice is kept across reboots. From a terminal:
   `sudo maglinux-vnc on|off|status`.
+
+---
+
+## 9. Hostname
+
+The hostname comes from `config/hostname.cfg` on the SD card's FAT partition
+(`/run/sdcard/config/hostname.cfg` on the device), so it can be changed from any PC.
+The image writes it with `HOSTNAME_NEW` from `config/settings.sh`.
+
+* **Format:** the first line that is not empty or a `#` comment; letters, digits and
+  hyphens, at most 63 characters (it is lowercased). Windows line endings are fine.
+* **Applied at every boot** by `maglinux-hostname.service`, before the network (DHCP
+  sends the name) and before the desktop: the hostname, `/etc/hostname`, the
+  `127.0.1.1` line of `/etc/hosts` and the VNC desktop name.
+* **Rescue system:** the same name with `-rescue` appended (e.g. `petofi9mon-rescue`).
+* **Missing file or invalid name:** the hostname stays as it is; the reason is in
+  `journalctl -u maglinux-hostname`.
+* **After editing on the device:** reboot. Restarting the service would change the
+  name under the running desktop.
