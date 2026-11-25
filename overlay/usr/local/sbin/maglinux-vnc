@@ -1,0 +1,51 @@
+#!/bin/sh
+# maglinux-vnc on|off|status|restore - switch remote access over VNC on or off.
+# Xorg shares the desktop on port 5901 (etc/X11/xorg.conf.d/50-maglinux-vnc.conf)
+# and keeps listening; "off" drops the port with an nftables rule and closes the
+# open VNC connections, so the desktop session and maglin keep running.
+# The choice is kept across reboots (maglinux-vnc.service runs "restore" at boot).
+# maguser runs it with pkexec from the desktop switch (maglinux-vnc-switch).
+set -eu
+
+PORT=5901
+TABLE=maglinux_vnc
+STATE=/var/lib/maglinux/vnc-disabled     # exists while VNC is off
+
+block() {
+    # "table; delete table; table {...}" replaces the table whether it exists or not
+    nft -f - <<NFT
+table inet $TABLE
+delete table inet $TABLE
+table inet $TABLE {
+    chain input {
+        type filter hook input priority filter - 10; policy accept;
+        tcp dport $PORT drop
+    }
+}
+NFT
+}
+unblock() { nft delete table inet "$TABLE" 2>/dev/null || true; }
+
+case "${1:-}" in
+    on)
+        rm -f "$STATE"
+        unblock
+        ;;
+    off)
+        mkdir -p "${STATE%/*}"
+        touch "$STATE"
+        block
+        # Close the open VNC connections (the rule only drops their packets)
+        ss -K state established "( sport = :$PORT )" >/dev/null 2>&1 || true
+        ;;
+    status)
+        if [ -e "$STATE" ]; then echo off; else echo on; fi
+        ;;
+    restore)
+        if [ -e "$STATE" ]; then block; else unblock; fi
+        ;;
+    *)
+        echo "usage: $0 on|off|status|restore" >&2
+        exit 2
+        ;;
+esac

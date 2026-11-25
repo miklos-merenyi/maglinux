@@ -102,6 +102,8 @@ LIGHTDM
 # in the overlay); its password file, readable only by root (Xorg runs as root)
 printf '%s\n' "$VNC_PASS" | sudo chroot "$R" vncpasswd -f | sudo tee "$R/etc/X11/vncpasswd" >/dev/null
 sudo chmod 600 "$R/etc/X11/vncpasswd"
+# The VNC on/off choice of the desktop switch (maglinux-vnc), applied at boot
+sudo chroot "$R" systemctl enable -q maglinux-vnc.service
 
 # WireGuard wg0, configured from the SD card (sdcard/config/wireguard/); the unit
 # is skipped while the card has no wg0.conf

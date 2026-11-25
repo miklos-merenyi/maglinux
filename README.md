@@ -252,3 +252,8 @@ the device show the same session, with one mouse and keyboard.
 * **Change the password on the device:** `sudo vncpasswd /etc/X11/vncpasswd`, then
   log out or reboot (the password is read when X starts).
 * **Resolution:** the device's own screen resolution.
+* **On/off:** the "VNC On/Off" icon on maguser's desktop asks, then switches remote
+  access without a password (polkit, local session) and without restarting the
+  desktop: "off" drops port 5901 with an nftables rule and closes open VNC
+  connections. The choice is kept across reboots. From a terminal:
+  `sudo maglinux-vnc on|off|status`.

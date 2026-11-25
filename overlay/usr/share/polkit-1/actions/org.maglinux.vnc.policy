@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- maglinux: the desktop VNC switch runs maglinux-vnc with pkexec; the user of the
+     local (active) session needs no password, others need the admin password -->
+<policyconfig>
+  <action id="org.maglinux.vnc">
+    <description>Switch remote access over VNC on or off</description>
+    <message>Authentication is required to switch remote access over VNC</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/sbin/maglinux-vnc</annotate>
+  </action>
+</policyconfig>

@@ -2,6 +2,6 @@
 Type=Application
 Name=Trust the MagLin launchers
 Comment=Mark the desktop launchers from the image as trusted
-Exec=/usr/local/lib/maglinux/trust-launchers maglin-start.desktop maglin-stop.desktop
+Exec=/usr/local/lib/maglinux/trust-launchers maglin-start.desktop maglin-stop.desktop maglinux-vnc-switch.desktop
 NoDisplay=true
 Terminal=false

@@ -1,0 +1,26 @@
+#!/bin/sh
+# Desktop switch for remote access over VNC: shows whether it is on and asks
+# before switching it (maglinux-vnc, run with pkexec; polkit allows it without a
+# password in the local session, see org.maglinux.vnc.policy).
+HELPER=/usr/local/sbin/maglinux-vnc
+TITLE="Remote access (VNC)"
+
+if [ "$($HELPER status)" = on ]; then
+    zenity --question --title="$TITLE" --icon-name=network-server \
+        --text="Remote access over VNC is <b>ON</b>.\n\nTurn it off? Open VNC connections are closed, also yours if you are connected over VNC." \
+        --ok-label="Turn off" --cancel-label="Keep on" || exit 0
+    if pkexec "$HELPER" off; then
+        zenity --info --title="$TITLE" --text="Remote access over VNC is now <b>OFF</b>."
+    else
+        zenity --error --title="$TITLE" --text="Could not turn remote access off."
+    fi
+else
+    zenity --question --title="$TITLE" --icon-name=network-server \
+        --text="Remote access over VNC is <b>OFF</b>.\n\nTurn it on?" \
+        --ok-label="Turn on" --cancel-label="Keep off" || exit 0
+    if pkexec "$HELPER" on; then
+        zenity --info --title="$TITLE" --text="Remote access over VNC is now <b>ON</b> (port 5901)."
+    else
+        zenity --error --title="$TITLE" --text="Could not turn remote access on."
+    fi
+fi

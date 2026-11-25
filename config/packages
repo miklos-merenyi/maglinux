@@ -21,6 +21,10 @@ network-manager
 network-manager-gnome
 tigervnc-xorg-extension
 tigervnc-tools
+# VNC on/off switch on the desktop (maglinux-vnc: firewall rule, dialog, polkit)
+nftables
+zenity
+pkexec
 wireguard-tools
 iputils-ping
 traceroute

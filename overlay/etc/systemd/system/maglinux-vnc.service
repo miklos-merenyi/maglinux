@@ -1,0 +1,12 @@
+[Unit]
+Description=maglinux: apply the VNC on/off choice (port 5901)
+# Before the X server (and its VNC port) starts
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/maglinux-vnc restore
+
+[Install]
+WantedBy=multi-user.target
