@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- maglinux: 2 virtual desktops instead of 4 (smaller pager in the top panel);
+<!-- maglinux: 3 virtual desktops instead of 4 (smaller pager in the top panel);
      all other window manager settings are XFCE's defaults -->
 <channel name="xfwm4" version="1.0">
   <property name="general" type="empty">
-    <property name="workspace_count" type="int" value="2"/>
+    <property name="workspace_count" type="int" value="3"/>
   </property>
 </channel>
