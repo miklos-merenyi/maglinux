@@ -1,0 +1,39 @@
+#!/bin/sh
+# maglinux-remove-old [-y] - delete the previous set (*.old, kept by the last update,
+# README section 13) from the SD card, to free its space (about 2.2 GB).
+# Asks first (-y: don't ask). Afterwards the boot menu's "previous system" and
+# "rescue system, previous kernel" have nothing to boot until the next update.
+# No root needed: the card's FAT partition belongs to the default user.
+CARD="${MAGLINUX_SDCARD:-/run/sdcard}"
+FILES="boot/vmlinuz.old boot/initrd.img.old rescue/initramfs.gz.old rescue/rescue.sqfs.old
+       rootfs.btrfs.old update.sha256.old"
+
+case "${1:-}" in
+    -y) yes=1 ;;
+    "") yes= ;;
+    *) echo "usage: ${0##*/} [-y]   delete the *.old files (previous set) from the SD card" >&2; exit 2 ;;
+esac
+
+if grep -qE 'maglinux.rootfs=rootfs.btrfs.old|BOOT_IMAGE=/boot/vmlinuz.old' /proc/cmdline; then
+    echo "This is the previous system (booted from the *.old files): not deleting them." >&2
+    exit 1
+fi
+[ -d "$CARD/boot" ] || { echo "SD card not found at $CARD" >&2; exit 1; }
+
+found=
+for f in $FILES; do [ -e "$CARD/$f" ] && found="$found $CARD/$f"; done
+if [ -z "$found" ]; then
+    echo "No *.old files on the SD card."
+    exit 0
+fi
+
+echo "Previous set on the SD card:"
+du -ch --apparent-size $found | sed 's/^/  /'
+echo "After deleting, the boot menu's \"previous system\" and \"rescue system, previous"
+echo "kernel\" have nothing to boot until the next update."
+if [ -z "$yes" ]; then
+    printf 'Delete them? [y/N] '
+    read -r answer
+    case "$answer" in y|Y|yes|Yes) ;; *) echo "Nothing deleted."; exit 0 ;; esac
+fi
+rm -f $found && sync && echo "Deleted."

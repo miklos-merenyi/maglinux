@@ -370,3 +370,6 @@ Copy all of it to the root of the device's card (from a PC, or over SSH to
   the `.old` kernel, initrd and rescue files are copies of the current ones, and the
   previous system boots `rootfs.btrfs`. To make the old set the default again,
   rename the files (e.g. from the rescue system).
+* **Freeing the space of the previous set:** `maglinux-remove-old` (as maguser; `-y`
+  does not ask) deletes all `*.old` files; the two "previous" boot menu entries then
+  have nothing to boot until the next update.
