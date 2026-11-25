@@ -10,3 +10,6 @@ copy_exec /sbin/losetup /sbin
 # First-boot growing of the FAT partition (scripts/local-top/mount-btrfs-loop)
 copy_exec /usr/bin/od /bin
 copy_exec /usr/bin/partx /bin
+# Updating the main system from rootfs.btrfs.new (scripts/local-top/mount-btrfs-loop)
+copy_exec /usr/bin/rm /bin
+copy_exec /usr/bin/date /bin

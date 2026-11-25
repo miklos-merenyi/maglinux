@@ -23,13 +23,15 @@ MAGLINUX_SDCARD_GID=1000
 SDCARD_OPTS="rw,uid=$MAGLINUX_SDCARD_UID,gid=$MAGLINUX_SDCARD_GID,dmask=0022,fmask=0133"
 
 # Wait (up to ~30s) for the SD/USB/IDE device to show up and find rootfs.btrfs
+# (or, after an update cut off by a power loss, rootfs.btrfs.new / .old)
 found=""
 i=0
 while [ $i -lt 30 ] && [ -z "$found" ]; do
     for dev in /dev/sd* /dev/mmcblk* /dev/vd* /dev/hd*; do
         [ -b "$dev" ] || continue
         if mount -t vfat -o "$SDCARD_OPTS" "$dev" /run/sdcard 2>/dev/null; then
-            if [ -f /run/sdcard/rootfs.btrfs ]; then
+            if [ -f /run/sdcard/rootfs.btrfs ] || [ -f /run/sdcard/rootfs.btrfs.new ] ||
+               [ -f /run/sdcard/rootfs.btrfs.old ]; then
                 found="$dev"
                 break
             fi
@@ -102,9 +104,83 @@ grow_sdcard() {
 }
 grow_sdcard
 
+# The image to boot: rootfs.btrfs, or another file in the card's root given with
+# maglinux.rootfs=<file> on the kernel command line (the boot menu's "previous
+# system" entry: maglinux.rootfs=rootfs.btrfs.old)
+ROOTFS=rootfs.btrfs
+for arg in $(cat /proc/cmdline); do
+    case "$arg" in maglinux.rootfs=*) ROOTFS=${arg#maglinux.rootfs=} ;; esac
+done
+case "$ROOTFS" in */*|"") ROOTFS=rootfs.btrfs ;; esac
+if [ "$ROOTFS" != rootfs.btrfs ] && [ ! -f "/run/sdcard/$ROOTFS" ]; then
+    log_failure_msg "mount-btrfs-loop: $ROOTFS not found on the card, booting rootfs.btrfs"
+    ROOTFS=rootfs.btrfs
+fi
+
+# Update of the main system: a rootfs.btrfs.new copied to the card replaces
+# rootfs.btrfs at the next boot (the old one is kept as rootfs.btrfs.old, an older
+# .old is deleted), and that boot already uses it. Only renames, so no extra space
+# is needed. A .new without a btrfs signature or without kernel modules for the
+# running kernel (the card's kernel does not change) is renamed to
+# rootfs.btrfs.rejected instead. Results go to rootfs-update.log on the card.
+# A power loss between the two renames is repaired at the next boot.
+D=/run/sdcard
+update_log() {
+    log_success_msg "mount-btrfs-loop: $*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$D/rootfs-update.log"
+}
+reject_update() {
+    mv "$D/rootfs.btrfs.new" "$D/rootfs.btrfs.rejected"
+    update_log "rootfs.btrfs.new REJECTED ($1), renamed to rootfs.btrfs.rejected; booting the current rootfs.btrfs"
+}
+update_rootfs() {
+    if [ ! -f "$D/rootfs.btrfs" ]; then
+        if [ -f "$D/rootfs.btrfs.new" ]; then
+            mv "$D/rootfs.btrfs.new" "$D/rootfs.btrfs"
+            update_log "update finished after an interruption: rootfs.btrfs.new -> rootfs.btrfs"
+        elif [ -f "$D/rootfs.btrfs.old" ]; then
+            mv "$D/rootfs.btrfs.old" "$D/rootfs.btrfs"
+            update_log "no rootfs.btrfs: restored rootfs.btrfs.old -> rootfs.btrfs"
+        fi
+        sync
+        return 0
+    fi
+    [ -f "$D/rootfs.btrfs.new" ] || return 0
+
+    log_begin_msg "mount-btrfs-loop: checking rootfs.btrfs.new"
+    # btrfs superblock magic at 64 KiB + 0x40
+    if [ "$(dd if="$D/rootfs.btrfs.new" bs=1 skip=65600 count=8 2>/dev/null)" != "_BHRfS_M" ]; then
+        log_end_msg; reject_update "not a btrfs image, or copied incompletely"; sync; return 0
+    fi
+    kver=$(uname -r)
+    mods=no
+    mkdir -p /run/rootfs-new
+    if newloop=$(losetup -r -f --show "$D/rootfs.btrfs.new" 2>/dev/null); then
+        if mount -t btrfs -o ro "$newloop" /run/rootfs-new 2>/dev/null; then
+            [ -d "/run/rootfs-new/lib/modules/$kver" ] && mods=yes
+            umount /run/rootfs-new
+        fi
+        losetup -d "$newloop"
+    fi
+    log_end_msg
+    if [ "$mods" != yes ]; then
+        reject_update "cannot be mounted, or has no kernel modules for the running kernel $kver"
+        sync; return 0
+    fi
+
+    rm -f "$D/rootfs.btrfs.old"
+    mv "$D/rootfs.btrfs" "$D/rootfs.btrfs.old"
+    sync
+    mv "$D/rootfs.btrfs.new" "$D/rootfs.btrfs"
+    sync
+    update_log "updated: rootfs.btrfs.new -> rootfs.btrfs (the previous one is rootfs.btrfs.old)"
+}
+# Not when booting another image (e.g. the previous system): leave the files alone
+[ "$ROOTFS" = rootfs.btrfs ] && update_rootfs
+
 [ -b /dev/loop0 ] || mknod /dev/loop0 b 7 0
-if losetup /dev/loop0 /run/sdcard/rootfs.btrfs; then
-    log_success_msg "mount-btrfs-loop: $found:/rootfs.btrfs attached to /dev/loop0"
+if losetup /dev/loop0 "/run/sdcard/$ROOTFS"; then
+    log_success_msg "mount-btrfs-loop: $found:/$ROOTFS attached to /dev/loop0"
 else
     log_failure_msg "mount-btrfs-loop: losetup failed"
 fi

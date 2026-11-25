@@ -337,3 +337,29 @@ uptime and the time.
   (`xfce4-genmon-plugin`, settings in `~/.config/xfce4/panel/genmon-23/25/24.rc`).
 * **Panel layout:** maguser's `~/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml`
   (from `overlay/home/maguser/`) is XFCE's default panel plus this plugin.
+
+---
+
+## 13. Updating the main system (rootfs.btrfs.new)
+
+Copy a new `build/rootfs.btrfs` to the root of the card as **`rootfs.btrfs.new`** (from
+a PC, or on the device to `/run/sdcard/`) and reboot. At the next boot the initramfs:
+
+1. checks it: btrfs signature, and kernel modules for the running kernel (the
+   kernel on the card does not change). If a check fails, the file is renamed to
+   `rootfs.btrfs.rejected` and the current system boots;
+2. deletes an older `rootfs.btrfs.old`, renames `rootfs.btrfs` to `rootfs.btrfs.old`
+   and `rootfs.btrfs.new` to `rootfs.btrfs`;
+3. boots the new system in the same boot.
+
+* **Space:** only file names change, so the card needs room for the copied `.new`
+  (about 2 GB), not more.
+* **Log:** `rootfs-update.log` on the card (`/run/sdcard/rootfs-update.log`).
+* **Power loss during the update:** repaired at the next boot (the missing
+  `rootfs.btrfs` is taken from `.new`, or from `.old`).
+* **Back to the previous system:** the boot menu's "previous system" entry boots
+  `rootfs.btrfs.old` (kernel parameter `maglinux.rootfs=rootfs.btrfs.old`), without
+  changing any file; without a `.old` it boots the current system. To make it the
+  default again, rename the files (e.g. from the rescue system).
+* **A new kernel** (after `make refresh`) cannot be installed this way: write the whole
+  image to the card instead.

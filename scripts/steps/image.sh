@@ -92,6 +92,11 @@ LABEL linux
     KERNEL /boot/vmlinuz
     APPEND initrd=/boot/initrd.img root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw
 
+LABEL previous
+    MENU LABEL $HOSTNAME_NEW, previous system (rootfs.btrfs.old, after an update)
+    KERNEL /boot/vmlinuz
+    APPEND initrd=/boot/initrd.img root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw maglinux.rootfs=rootfs.btrfs.old
+
 LABEL rescue
     MENU LABEL Rescue system (root autologin, SD card writable)
     KERNEL /boot/vmlinuz
