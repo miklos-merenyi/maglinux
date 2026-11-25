@@ -1,7 +1,8 @@
 #!/bin/sh
 # Start or stop maglin from the panel button (maglinux-maglin-panel):
-# running -> ask, then maglin-stop (waits up to 60 s for a clean exit);
-# stopped -> maglin-start in the background (it runs as maglin until maglin exits).
+# asks first, like the VNC switch, and confirms the result:
+# running -> maglin-stop (waits up to 60 s for a clean exit);
+# stopped -> maglin-start in the background (it runs until maglin exits).
 TITLE="maglin"
 refresh() { xfce4-panel --plugin-event=genmon-25:refresh:bool:true 2>/dev/null || true; }
 
@@ -17,13 +18,21 @@ if pgrep -x maglin >/dev/null; then
     if pgrep -x maglin >/dev/null; then
         zenity --error --title="$TITLE" \
             --text="maglin did not stop within 60 seconds.\nSee /var/log/maglin/maglinux.log."
+    else
+        zenity --info --title="$TITLE" --text="maglin is now <b>STOPPED</b>."
     fi
 else
+    zenity --question --title="$TITLE" --icon-name=dialog-question \
+        --text="maglin is <b>stopped</b>.\n\nStart it?" \
+        --ok-label="Start maglin" --cancel-label="Keep stopped" || exit 0
     setsid -f /usr/local/bin/maglin-start </dev/null >/dev/null 2>&1
     i=0
     while [ $i -lt 10 ] && ! pgrep -x maglin >/dev/null; do sleep 0.5; i=$((i + 1)); done
     refresh
-    pgrep -x maglin >/dev/null ||
+    if pgrep -x maglin >/dev/null; then
+        zenity --info --title="$TITLE" --text="maglin is now <b>RUNNING</b>."
+    else
         zenity --error --title="$TITLE" \
             --text="maglin did not start.\nSee /var/log/maglin/maglinux.log and maglin.out."
+    fi
 fi
