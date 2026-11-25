@@ -13,3 +13,4 @@ copy_exec /usr/bin/partx /bin
 # Updating the main system from rootfs.btrfs.new (scripts/local-top/mount-btrfs-loop)
 copy_exec /usr/bin/rm /bin
 copy_exec /usr/bin/date /bin
+copy_exec /usr/bin/sha256sum /bin

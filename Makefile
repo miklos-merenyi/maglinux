@@ -88,7 +88,8 @@ $(IMAGE): $(BTRFS) $(RESCUE) $(ROOTFS) config/settings.sh $(call tree,sdcard) $(
 	$(STEPS)/image.sh
 
 # The update set, in the card's layout: kernel, initrd, rescue system and main system
-# of this build as *.new (scripts/local-top/mount-btrfs-loop applies them at boot)
+# of this build as *.new, and update.sha256 with their checksums
+# (scripts/local-top/mount-btrfs-loop checks and applies them at boot)
 update: $(BTRFS) $(RESCUE) $(ROOTFS)
 	rm -rf $(B)/update
 	mkdir -p $(B)/update/boot $(B)/update/rescue
@@ -97,6 +98,8 @@ update: $(BTRFS) $(RESCUE) $(ROOTFS)
 	cp $(B)/rescue/initramfs.gz $(B)/update/rescue/initramfs.gz.new
 	cp $(B)/rescue/rescue.sqfs $(B)/update/rescue/rescue.sqfs.new
 	cp $(BTRFS) $(B)/update/rootfs.btrfs.new
+	cd $(B)/update && sha256sum boot/vmlinuz.new boot/initrd.img.new rescue/initramfs.gz.new \
+		rescue/rescue.sqfs.new rootfs.btrfs.new > update.sha256
 	@echo "Update set: $(B)/update/ (copy its contents to the root of the device's SD card)"
 
 refresh:

@@ -346,20 +346,19 @@ uptime and the time.
 
 ```
 boot/vmlinuz.new  boot/initrd.img.new  rescue/initramfs.gz.new
-rescue/rescue.sqfs.new  rootfs.btrfs.new
+rescue/rescue.sqfs.new  rootfs.btrfs.new  update.sha256
 ```
 
-Copy its contents to the root of the device's card (from a PC, or over SSH to
+Copy all of it to the root of the device's card (from a PC, or over SSH to
 `/run/sdcard/`; about 2.2 GB) and reboot. At the next boot the initramfs:
 
-1. checks the set: a kernel update (with `boot/vmlinuz.new`) needs all five files,
-   and `rootfs.btrfs.new` must have kernel modules for the new kernel's version
-   (read from `vmlinuz.new`). Only `rootfs.btrfs.new` (same kernel) also works.
-   A set that fails a check is renamed to `*.rejected` and the current system boots;
-2. renames each part to `*.old` and its `*.new` into its place (parts without a
-   `.new` are copied to `.old`), so `*.old` is always the complete previous set;
-3. boots the new system: after a kernel update it reboots once by itself, straight
-   into the new kernel.
+1. checks the set: all six files present, the checksums in `update.sha256` match
+   (a few minutes on the device), and `rootfs.btrfs.new` has kernel modules for the
+   new kernel's version (read from `vmlinuz.new`). A set that fails a check is
+   renamed to `*.rejected` and the current system boots;
+2. renames each part to `*.old` and its `*.new` into its place, so `*.old` is the
+   complete previous set;
+3. reboots into the new set.
 
 * **Space:** only renames, so the card needs room for the copied set, not more.
 * **Log:** `rootfs-update.log` on the card (`/run/sdcard/rootfs-update.log`).

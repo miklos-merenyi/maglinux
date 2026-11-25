@@ -117,21 +117,21 @@ if [ "$ROOTFS" != rootfs.btrfs ] && [ ! -f "/run/sdcard/$ROOTFS" ]; then
     ROOTFS=rootfs.btrfs
 fi
 
-# Update from .new files copied to the card (built by "make update" in build/update/,
-# copied to the card's root), applied at boot; results go to rootfs-update.log:
+# Update from the update set copied to the card's root ("make update" builds it in
+# build/update/): boot/vmlinuz.new, boot/initrd.img.new, rescue/initramfs.gz.new,
+# rescue/rescue.sqfs.new, rootfs.btrfs.new and update.sha256. At boot:
 #
-# * rootfs.btrfs.new alone: the main system with the same kernel. It must have
-#   modules for the running kernel. This boot already uses it.
-# * a kernel update: boot/vmlinuz.new with all of boot/initrd.img.new,
-#   rescue/initramfs.gz.new, rescue/rescue.sqfs.new and rootfs.btrfs.new (their
-#   kernel modules must match). rootfs.btrfs.new must have modules for the new
-#   kernel's version. After the renames the device reboots into the new kernel.
+# 1. checks: all six files present, the checksums in update.sha256 match, and
+#    rootfs.btrfs.new has kernel modules for the new kernel's version (read from
+#    vmlinuz.new). A set that fails is renamed to .rejected and the current system
+#    boots;
+# 2. renames each part to <part>.old and <part>.new into its place (only renames),
+#    so *.old is the complete previous set: the boot menu's "previous system" and
+#    "rescue system, previous kernel" boot it;
+# 3. reboots into the new set.
 #
-# Each part becomes <part>.old and <part>.new takes its place (only renames; parts
-# without a .new are copied to .old), so .old is always the complete previous set:
-# the boot menu's "previous system" and "rescue system, previous kernel" boot it.
-# A set that fails a check is renamed to .rejected and the current system boots.
-# A power loss in the middle is repaired at the next boot.
+# Results go to rootfs-update.log on the card. A power loss in the middle of the
+# renames is repaired at the next boot.
 D=/run/sdcard
 PARTS="boot/vmlinuz boot/initrd.img rescue/initramfs.gz rescue/rescue.sqfs rootfs.btrfs"
 update_log() {
@@ -142,8 +142,10 @@ reject_update() {
     for p in $PARTS; do
         [ -f "$D/$p.new" ] && mv "$D/$p.new" "$D/$p.rejected"
     done
+    [ -f "$D/update.sha256" ] && mv "$D/update.sha256" "$D/update.sha256.rejected"
     sync
-    update_log "update REJECTED: $1; the .new files are renamed to .rejected, booting the current system"
+    log_end_msg
+    update_log "update REJECTED: $1; the update files are renamed to *.rejected, booting the current system"
 }
 # Version of a kernel image (bzImage header: "HdrS" at 0x202, version string pointer at 0x20e)
 kernel_version() {
@@ -154,7 +156,6 @@ kernel_version() {
 }
 # Does a btrfs image have /lib/modules/<version>?
 has_modules() {
-    [ "$(dd if="$1" bs=1 skip=65600 count=8 2>/dev/null)" = "_BHRfS_M" ] || return 1
     ok=1
     mkdir -p /run/rootfs-new
     if l=$(losetup -r -f --show "$1" 2>/dev/null); then
@@ -179,44 +180,33 @@ update_system() {
     sync
 
     new=
-    for p in $PARTS; do [ -f "$D/$p.new" ] && new="$new $p"; done
+    for p in $PARTS; do [ -f "$D/$p.new" ] && new="$new $p.new"; done
+    [ -f "$D/update.sha256" ] && new="$new update.sha256"
     [ -n "$new" ] || return 0
-    log_begin_msg "mount-btrfs-loop: checking the update:$new"
-    if [ -f "$D/boot/vmlinuz.new" ]; then
-        kernel_update=yes
-        for p in $PARTS; do
-            [ -s "$D/$p.new" ] || { log_end_msg; reject_update "a kernel update needs all of the set (make update), $p.new is missing"; return 0; }
-        done
-        kver=$(kernel_version "$D/boot/vmlinuz.new") ||
-            { log_end_msg; reject_update "boot/vmlinuz.new is not a kernel image"; return 0; }
-        [ "$(dd if="$D/rescue/rescue.sqfs.new" bs=4 count=1 2>/dev/null)" = hsqs ] ||
-            { log_end_msg; reject_update "rescue/rescue.sqfs.new is not a squashfs image"; return 0; }
-    else
-        kernel_update=no
-        kver=$(uname -r)
-        [ "$new" = " rootfs.btrfs" ] ||
-            { log_end_msg; reject_update "without boot/vmlinuz.new only rootfs.btrfs.new can be updated (got:$new); copy the whole set (make update)"; return 0; }
-    fi
+
+    log_begin_msg "mount-btrfs-loop: checking the update (the checksums take a few minutes)"
+    for p in $PARTS; do
+        [ -f "$D/$p.new" ] || { reject_update "incomplete update set, $p.new is missing (copy all of build/update/)"; return 0; }
+    done
+    [ -f "$D/update.sha256" ] || { reject_update "incomplete update set, update.sha256 is missing (copy all of build/update/)"; return 0; }
+    ( cd "$D" && sha256sum -c --quiet update.sha256 ) >/dev/null 2>&1 ||
+        { reject_update "checksum mismatch (update.sha256): copied incompletely or damaged"; return 0; }
+    kver=$(kernel_version "$D/boot/vmlinuz.new") ||
+        { reject_update "boot/vmlinuz.new is not a kernel image"; return 0; }
     has_modules "$D/rootfs.btrfs.new" "$kver" ||
-        { log_end_msg; reject_update "rootfs.btrfs.new is not a btrfs image, or has no kernel modules for kernel $kver"; return 0; }
+        { reject_update "rootfs.btrfs.new cannot be mounted, or has no kernel modules for kernel $kver"; return 0; }
     log_end_msg
 
+    rm -f "$D/update.sha256.old"; mv "$D/update.sha256" "$D/update.sha256.old"
     for p in $PARTS; do
         rm -f "$D/$p.old"
-        if [ -f "$D/$p.new" ]; then
-            mv "$D/$p" "$D/$p.old" && mv "$D/$p.new" "$D/$p"
-        else
-            cat "$D/$p" > "$D/$p.old.tmp" && mv "$D/$p.old.tmp" "$D/$p.old"
-        fi
+        mv "$D/$p" "$D/$p.old" && mv "$D/$p.new" "$D/$p"
         sync
     done
-    if [ "$kernel_update" = yes ]; then
-        update_log "updated: kernel $kver, initrd, rescue system and rootfs.btrfs (the previous set is *.old); rebooting into the new kernel"
-        umount /run/sdcard
-        reboot
-        sleep 30
-    fi
-    update_log "updated: rootfs.btrfs (the previous set is *.old)"
+    update_log "updated: kernel $kver, initrd, rescue system and rootfs.btrfs (the previous set is *.old); rebooting into the new set"
+    umount /run/sdcard
+    reboot
+    sleep 30
 }
 # Not when booting another image (e.g. the previous system): leave the files alone
 [ "$ROOTFS" = rootfs.btrfs ] && update_system
