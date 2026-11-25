@@ -181,8 +181,15 @@ update_system() {
 
     new=
     for p in $PARTS; do [ -f "$D/$p.new" ] && new="$new $p.new"; done
-    [ -f "$D/update.sha256" ] && new="$new update.sha256"
-    [ -n "$new" ] || return 0
+    if [ -z "$new" ]; then
+        # update.sha256 without any update file: a leftover (e.g. of an update done by
+        # an older version of this script, which left it in place), not an update
+        if [ -f "$D/update.sha256" ]; then
+            rm -f "$D/update.sha256.old"; mv "$D/update.sha256" "$D/update.sha256.old"; sync
+            update_log "update.sha256 without update files ignored (renamed to update.sha256.old)"
+        fi
+        return 0
+    fi
 
     log_begin_msg "mount-btrfs-loop: checking the update (the checksums take a few minutes)"
     for p in $PARTS; do
