@@ -1,0 +1,12 @@
+ALi M6117 watchdog driver (alim6117_wdt), for the M6117-compatible watchdog timer
+of DM&P Vortex86 SoCs (e.g. the Vortex86DX3). Out-of-tree kernel module, GPL v2+.
+
+Upstream: https://github.com/cmcqueen/alim6117_wdt, commit 7b1a01c (version 0.3.1),
+based on Federico Bareilles' driver (2003). Changes for maglinux (kernel 6.1):
+
+* MODULE_SUPPORTED_DEVICE removed (gone since kernel 5.12)
+* the timeout parameter is registered as uint (it is an unsigned variable)
+* max_timeout 511 instead of 512: 512 s overflows the 24-bit counter
+
+Built by scripts/steps/kmod.sh against the image's kernel and installed into
+/lib/modules/<version>/updates/; loaded on Vortex86 CPUs by maglinux-watchdog.service.

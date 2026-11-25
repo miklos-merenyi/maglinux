@@ -1,0 +1,15 @@
+[Unit]
+Description=Load the Vortex86 watchdog driver (alim6117_wdt, /dev/watchdog)
+# Only on Vortex86 CPUs: the driver does not detect the hardware itself, and on
+# other machines its ports (0x22/0x23) may belong to something else.
+# Before the desktop, so that maglin (watchdog=/dev/watchdog) finds the device.
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecCondition=/bin/grep -q "^model name.*Vortex86" /proc/cpuinfo
+ExecStart=/sbin/modprobe alim6117_wdt
+
+[Install]
+WantedBy=multi-user.target

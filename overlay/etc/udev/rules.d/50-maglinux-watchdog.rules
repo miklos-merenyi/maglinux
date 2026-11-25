@@ -1,0 +1,4 @@
+# maglinux: the watchdog group (maguser) may use the watchdog, so maglin can feed
+# it without root (watchdog=/dev/watchdog in maglin.ini)
+SUBSYSTEM=="watchdog", GROUP="watchdog", MODE="0660"
+KERNEL=="watchdog*", GROUP="watchdog", MODE="0660"

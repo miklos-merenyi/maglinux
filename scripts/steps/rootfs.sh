@@ -50,11 +50,12 @@ ff02::1		ip6-allnodes
 ff02::2		ip6-allrouters
 HOSTS
 
-# Root password and default user (dialout: serial ports; rtc: the hardware clock,
-# etc/udev/rules.d/50-maglinux-rtc.rules in the overlay)
+# Root password and default user (dialout: serial ports; rtc: the hardware clock;
+# watchdog: /dev/watchdog; see etc/udev/rules.d/50-maglinux-*.rules in the overlay)
 sudo chroot "$R" groupadd -r rtc
+sudo chroot "$R" groupadd -r watchdog
 sudo chroot "$R" useradd -m -s /bin/bash "$USER_NAME"
-for g in sudo audio video plugdev netdev users dialout rtc; do
+for g in sudo audio video plugdev netdev users dialout rtc watchdog; do
     if sudo chroot "$R" getent group "$g" >/dev/null; then
         sudo chroot "$R" usermod -aG "$g" "$USER_NAME"
     fi
@@ -129,6 +130,13 @@ sudo chroot "$R" systemctl enable -q maglinux-vnc.service
 # WireGuard wg0, configured from the SD card (sdcard/config/wireguard/); the unit
 # is skipped while the card has no wg0.conf
 sudo chroot "$R" systemctl enable -q wg-quick@wg0.service
+
+# Vortex86 watchdog driver (built by kmod.sh), loaded on Vortex86 CPUs by
+# maglinux-watchdog.service
+kver=$(cat "$B/kmod/kernel")
+sudo install -D -m 644 "$B/kmod/alim6117_wdt.ko" "$R/lib/modules/$kver/updates/alim6117_wdt.ko"
+sudo chroot "$R" depmod -a "$kver"
+sudo chroot "$R" systemctl enable -q maglinux-watchdog.service
 
 # Hostname from the SD card (config/hostname.cfg, written by image.sh), set at boot
 sudo chroot "$R" systemctl enable -q maglinux-hostname.service

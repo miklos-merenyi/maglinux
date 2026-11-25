@@ -1,13 +1,13 @@
 # maglinux build: every stage is rebuilt only when its inputs changed.
 #
 #   make              build build/sdcard-8g.img (default)
-#   make <stage>      build up to one stage: base rootfs btrfs rescue-base rescue image
+#   make <stage>      build up to one stage: base kmod rootfs btrfs rescue-base rescue image
 #   make update       build/update/: the update set for a device (copy its contents to
 #                     the card's root; applied at the next boot, see README)
 #   make refresh      re-run the Debian bootstraps on the next build (picks up new
 #                     package versions, e.g. security updates, without a config change)
 #   make run          build if needed, then boot the image in QEMU
-#   make clean        remove all build output except the two bootstraps
+#   make clean        remove all build output except the bootstraps (and build/kbuild)
 #   make distclean    remove the whole build directory
 #
 # Stages (scripts/steps/*.sh; the steps run as your user and use sudo):
@@ -16,6 +16,9 @@
 #                               └─(kernel modules)─┐              ├──> sdcard-8g.img
 #   config/rescue-packages ──> rescue-base ──> rescue ────────────┘
 #
+# kmod compiles the out-of-tree kernel modules (third_party/) for base's kernel in a
+# build chroot (build/kbuild, bootstrapped again only for a new kernel); rootfs
+# installs them.
 # base/rescue-base are the slow mmdebstrap runs; rootfs and rescue configure a
 # fresh copy of them, so editing the overlay or the settings does not bootstrap again.
 # A file *deleted* from overlay/, rescue/ or sdcard/ is not noticed: run `make clean` then.
@@ -34,6 +37,7 @@ LIB    := scripts/lib.sh
 # Stage outputs (directory trees are represented by stamp files)
 BASE        := $(STAMPS)/base
 ROOTFS      := $(STAMPS)/rootfs
+KMOD        := $(STAMPS)/kmod
 RESCUE_BASE := $(STAMPS)/rescue-base
 RESCUE      := $(STAMPS)/rescue
 BTRFS       := $(B)/rootfs.btrfs
@@ -53,9 +57,10 @@ RESCUE_SHARED := overlay/usr/local/sbin/maglinux-wireguard-import \
 	overlay/usr/local/sbin/maglinux-network \
 	overlay/etc/systemd/system/maglinux-network.service
 
-.PHONY: all base rootfs btrfs rescue-base rescue image update refresh run clean distclean
+.PHONY: all base kmod rootfs btrfs rescue-base rescue image update refresh run clean distclean
 all: image
 base: $(BASE)
+kmod: $(KMOD)
 rootfs: $(ROOTFS)
 btrfs: $(BTRFS)
 rescue-base: $(RESCUE_BASE)
@@ -69,7 +74,12 @@ $(BASE): config/packages config/sources.list $(STEPS)/base.sh $(LIB) | $(STAMPS)
 	$(STEPS)/base.sh main
 	touch $@
 
-$(ROOTFS): $(BASE) config/settings.sh $(call tree,overlay) $(wildcard debs/*.deb) $(STEPS)/rootfs.sh $(LIB)
+# Out-of-tree kernel modules (third_party/), compiled for the kernel in build/base
+$(KMOD): $(BASE) config/sources.list $(call tree,third_party) $(STEPS)/kmod.sh $(LIB) | $(STAMPS)
+	$(STEPS)/kmod.sh
+	touch $@
+
+$(ROOTFS): $(BASE) $(KMOD) config/settings.sh $(call tree,overlay) $(wildcard debs/*.deb) $(STEPS)/rootfs.sh $(LIB)
 	$(STEPS)/rootfs.sh
 	touch $@
 
@@ -110,7 +120,8 @@ run: $(IMAGE)
 
 clean:
 	sudo rm -rf --one-file-system $(B)/rootfs $(B)/rescue-root $(B)/rescue-initramfs $(B)/rescue \
-		$(B)/rootfs.btrfs $(B)/sdcard-8g.img $(B)/*.tmp $(B)/update $(ROOTFS) $(RESCUE)
+		$(B)/rootfs.btrfs $(B)/sdcard-8g.img $(B)/*.tmp $(B)/update $(B)/kmod \
+		$(ROOTFS) $(RESCUE) $(KMOD)
 
 distclean:
 	sudo rm -rf --one-file-system $(B)

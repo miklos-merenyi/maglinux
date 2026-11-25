@@ -119,6 +119,9 @@ config/rescue-packages ──> rescue-base ──> rescue ───────�
   overlay, users, passwords, desktop and VNC settings (`build/rootfs`), or build the
   rescue initramfs and `rescue.sqfs` (`build/rescue/`). Changing the configuration
   therefore never triggers a new Debian bootstrap.
+* **`kmod`:** compiles the out-of-tree kernel modules in `third_party/` (the Vortex86
+  watchdog driver) for the kernel in `build/base`, in a build chroot (`build/kbuild`
+  with gcc and that kernel's headers; bootstrapped again only for a new kernel).
 * **`btrfs`:** packs `build/rootfs` into the compressed `build/rootfs.btrfs`.
 * **`image`:** assembles the bootable `build/sdcard-8g.img`.
 
@@ -162,7 +165,7 @@ Files in `sdcard/` are copied as-is onto the SD card's FAT partition (mounted at
 | Command | Effect |
 |---|---|
 | `make` | Build `build/sdcard-8g.img`, rerunning only what changed |
-| `make <stage>` | Build up to one stage: `base`, `rootfs`, `btrfs`, `rescue-base`, `rescue`, `image` |
+| `make <stage>` | Build up to one stage: `base`, `kmod`, `rootfs`, `btrfs`, `rescue-base`, `rescue`, `image` |
 | `make refresh` | Bootstrap both systems again on the next build, to pick up new Debian package versions (e.g. security updates) when no config file changed |
 | `make run` | Build if needed, then boot the image in QEMU (`scripts/run_qemu`) |
 | `make clean` | Remove all build output except the two bootstraps |
@@ -373,3 +376,24 @@ Copy all of it to the root of the device's card (from a PC, or over SSH to
 * **Freeing the space of the previous set:** `maglinux-remove-old` (as maguser; `-y`
   does not ask) deletes all `*.old` files; the two "previous" boot menu entries then
   have nothing to boot until the next update.
+
+---
+
+## 14. Hardware watchdog (Vortex86)
+
+The Vortex86DX3 has an ALi M6117-compatible watchdog. Its driver `alim6117_wdt`
+(`third_party/alim6117_wdt/`, out-of-tree, built by the `kmod` stage) is loaded at boot
+by `maglinux-watchdog.service`, only on Vortex86 CPUs (elsewhere the service is
+skipped). It provides `/dev/watchdog` (timeout 60 s), usable by the `watchdog` group
+(maguser).
+
+* **maglin feeds it** with `watchdog=/dev/watchdog` in `maglin.ini` (main section).
+  If maglin hangs or crashes, the machine is reset after the timeout.
+* **Closing or stopping maglin**, or a fatal error (e.g. in the configuration),
+  stops the watchdog (maglin writes the magic close character), so no reset follows.
+  This needs a maglin package with that change.
+* **Only one program can use it:** while maglin does, systemd's `RuntimeWatchdogSec=`
+  must stay off.
+* **Check:** `wdctl` (driver, timeout, state); `sudo dmesg | grep -i m6117`.
+* **Other timeout:** `options alim6117_wdt timeout=<seconds>` (1-511) in
+  `/etc/modprobe.d/`.
