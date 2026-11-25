@@ -117,66 +117,109 @@ if [ "$ROOTFS" != rootfs.btrfs ] && [ ! -f "/run/sdcard/$ROOTFS" ]; then
     ROOTFS=rootfs.btrfs
 fi
 
-# Update of the main system: a rootfs.btrfs.new copied to the card replaces
-# rootfs.btrfs at the next boot (the old one is kept as rootfs.btrfs.old, an older
-# .old is deleted), and that boot already uses it. Only renames, so no extra space
-# is needed. A .new without a btrfs signature or without kernel modules for the
-# running kernel (the card's kernel does not change) is renamed to
-# rootfs.btrfs.rejected instead. Results go to rootfs-update.log on the card.
-# A power loss between the two renames is repaired at the next boot.
+# Update from .new files copied to the card (built by "make update" in build/update/,
+# copied to the card's root), applied at boot; results go to rootfs-update.log:
+#
+# * rootfs.btrfs.new alone: the main system with the same kernel. It must have
+#   modules for the running kernel. This boot already uses it.
+# * a kernel update: boot/vmlinuz.new with all of boot/initrd.img.new,
+#   rescue/initramfs.gz.new, rescue/rescue.sqfs.new and rootfs.btrfs.new (their
+#   kernel modules must match). rootfs.btrfs.new must have modules for the new
+#   kernel's version. After the renames the device reboots into the new kernel.
+#
+# Each part becomes <part>.old and <part>.new takes its place (only renames; parts
+# without a .new are copied to .old), so .old is always the complete previous set:
+# the boot menu's "previous system" and "rescue system, previous kernel" boot it.
+# A set that fails a check is renamed to .rejected and the current system boots.
+# A power loss in the middle is repaired at the next boot.
 D=/run/sdcard
+PARTS="boot/vmlinuz boot/initrd.img rescue/initramfs.gz rescue/rescue.sqfs rootfs.btrfs"
 update_log() {
     log_success_msg "mount-btrfs-loop: $*"
     echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$D/rootfs-update.log"
 }
 reject_update() {
-    mv "$D/rootfs.btrfs.new" "$D/rootfs.btrfs.rejected"
-    update_log "rootfs.btrfs.new REJECTED ($1), renamed to rootfs.btrfs.rejected; booting the current rootfs.btrfs"
+    for p in $PARTS; do
+        [ -f "$D/$p.new" ] && mv "$D/$p.new" "$D/$p.rejected"
+    done
+    sync
+    update_log "update REJECTED: $1; the .new files are renamed to .rejected, booting the current system"
 }
-update_rootfs() {
-    if [ ! -f "$D/rootfs.btrfs" ]; then
-        if [ -f "$D/rootfs.btrfs.new" ]; then
-            mv "$D/rootfs.btrfs.new" "$D/rootfs.btrfs"
-            update_log "update finished after an interruption: rootfs.btrfs.new -> rootfs.btrfs"
-        elif [ -f "$D/rootfs.btrfs.old" ]; then
-            mv "$D/rootfs.btrfs.old" "$D/rootfs.btrfs"
-            update_log "no rootfs.btrfs: restored rootfs.btrfs.old -> rootfs.btrfs"
-        fi
-        sync
-        return 0
-    fi
-    [ -f "$D/rootfs.btrfs.new" ] || return 0
-
-    log_begin_msg "mount-btrfs-loop: checking rootfs.btrfs.new"
-    # btrfs superblock magic at 64 KiB + 0x40
-    if [ "$(dd if="$D/rootfs.btrfs.new" bs=1 skip=65600 count=8 2>/dev/null)" != "_BHRfS_M" ]; then
-        log_end_msg; reject_update "not a btrfs image, or copied incompletely"; sync; return 0
-    fi
-    kver=$(uname -r)
-    mods=no
+# Version of a kernel image (bzImage header: "HdrS" at 0x202, version string pointer at 0x20e)
+kernel_version() {
+    [ "$(dd if="$1" bs=1 skip=514 count=4 2>/dev/null)" = HdrS ] || return 1
+    p=$(od -An -tu2 -j 526 -N2 "$1") || return 1
+    set -- $(dd if="$1" bs=1 skip=$((p + 512)) count=80 2>/dev/null)
+    [ -n "$1" ] && echo "$1"
+}
+# Does a btrfs image have /lib/modules/<version>?
+has_modules() {
+    [ "$(dd if="$1" bs=1 skip=65600 count=8 2>/dev/null)" = "_BHRfS_M" ] || return 1
+    ok=1
     mkdir -p /run/rootfs-new
-    if newloop=$(losetup -r -f --show "$D/rootfs.btrfs.new" 2>/dev/null); then
-        if mount -t btrfs -o ro "$newloop" /run/rootfs-new 2>/dev/null; then
-            [ -d "/run/rootfs-new/lib/modules/$kver" ] && mods=yes
+    if l=$(losetup -r -f --show "$1" 2>/dev/null); then
+        if mount -t btrfs -o ro "$l" /run/rootfs-new 2>/dev/null; then
+            [ -d "/run/rootfs-new/lib/modules/$2" ] && ok=0
             umount /run/rootfs-new
         fi
-        losetup -d "$newloop"
+        losetup -d "$l"
     fi
-    log_end_msg
-    if [ "$mods" != yes ]; then
-        reject_update "cannot be mounted, or has no kernel modules for the running kernel $kver"
-        sync; return 0
-    fi
+    return $ok
+}
+update_system() {
+    # Repair after a power loss between the renames
+    for p in $PARTS; do
+        [ -f "$D/$p" ] && continue
+        if [ -f "$D/$p.new" ]; then
+            mv "$D/$p.new" "$D/$p"; update_log "repaired after an interruption: $p.new -> $p"
+        elif [ -f "$D/$p.old" ]; then
+            mv "$D/$p.old" "$D/$p"; update_log "repaired: $p missing, restored $p.old -> $p"
+        fi
+    done
+    sync
 
-    rm -f "$D/rootfs.btrfs.old"
-    mv "$D/rootfs.btrfs" "$D/rootfs.btrfs.old"
-    sync
-    mv "$D/rootfs.btrfs.new" "$D/rootfs.btrfs"
-    sync
-    update_log "updated: rootfs.btrfs.new -> rootfs.btrfs (the previous one is rootfs.btrfs.old)"
+    new=
+    for p in $PARTS; do [ -f "$D/$p.new" ] && new="$new $p"; done
+    [ -n "$new" ] || return 0
+    log_begin_msg "mount-btrfs-loop: checking the update:$new"
+    if [ -f "$D/boot/vmlinuz.new" ]; then
+        kernel_update=yes
+        for p in $PARTS; do
+            [ -s "$D/$p.new" ] || { log_end_msg; reject_update "a kernel update needs all of the set (make update), $p.new is missing"; return 0; }
+        done
+        kver=$(kernel_version "$D/boot/vmlinuz.new") ||
+            { log_end_msg; reject_update "boot/vmlinuz.new is not a kernel image"; return 0; }
+        [ "$(dd if="$D/rescue/rescue.sqfs.new" bs=4 count=1 2>/dev/null)" = hsqs ] ||
+            { log_end_msg; reject_update "rescue/rescue.sqfs.new is not a squashfs image"; return 0; }
+    else
+        kernel_update=no
+        kver=$(uname -r)
+        [ "$new" = " rootfs.btrfs" ] ||
+            { log_end_msg; reject_update "without boot/vmlinuz.new only rootfs.btrfs.new can be updated (got:$new); copy the whole set (make update)"; return 0; }
+    fi
+    has_modules "$D/rootfs.btrfs.new" "$kver" ||
+        { log_end_msg; reject_update "rootfs.btrfs.new is not a btrfs image, or has no kernel modules for kernel $kver"; return 0; }
+    log_end_msg
+
+    for p in $PARTS; do
+        rm -f "$D/$p.old"
+        if [ -f "$D/$p.new" ]; then
+            mv "$D/$p" "$D/$p.old" && mv "$D/$p.new" "$D/$p"
+        else
+            cat "$D/$p" > "$D/$p.old.tmp" && mv "$D/$p.old.tmp" "$D/$p.old"
+        fi
+        sync
+    done
+    if [ "$kernel_update" = yes ]; then
+        update_log "updated: kernel $kver, initrd, rescue system and rootfs.btrfs (the previous set is *.old); rebooting into the new kernel"
+        umount /run/sdcard
+        reboot
+        sleep 30
+    fi
+    update_log "updated: rootfs.btrfs (the previous set is *.old)"
 }
 # Not when booting another image (e.g. the previous system): leave the files alone
-[ "$ROOTFS" = rootfs.btrfs ] && update_rootfs
+[ "$ROOTFS" = rootfs.btrfs ] && update_system
 
 [ -b /dev/loop0 ] || mknod /dev/loop0 b 7 0
 if losetup /dev/loop0 "/run/sdcard/$ROOTFS"; then

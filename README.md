@@ -340,26 +340,34 @@ uptime and the time.
 
 ---
 
-## 13. Updating the main system (rootfs.btrfs.new)
+## 13. Updating a device (kernel, initrd, rescue system, main system)
 
-Copy a new `build/rootfs.btrfs` to the root of the card as **`rootfs.btrfs.new`** (from
-a PC, or on the device to `/run/sdcard/`) and reboot. At the next boot the initramfs:
+`make update` builds the update set in `build/update/`, in the card's layout:
 
-1. checks it: btrfs signature, and kernel modules for the running kernel (the
-   kernel on the card does not change). If a check fails, the file is renamed to
-   `rootfs.btrfs.rejected` and the current system boots;
-2. deletes an older `rootfs.btrfs.old`, renames `rootfs.btrfs` to `rootfs.btrfs.old`
-   and `rootfs.btrfs.new` to `rootfs.btrfs`;
-3. boots the new system in the same boot.
+```
+boot/vmlinuz.new  boot/initrd.img.new  rescue/initramfs.gz.new
+rescue/rescue.sqfs.new  rootfs.btrfs.new
+```
 
-* **Space:** only file names change, so the card needs room for the copied `.new`
-  (about 2 GB), not more.
+Copy its contents to the root of the device's card (from a PC, or over SSH to
+`/run/sdcard/`; about 2.2 GB) and reboot. At the next boot the initramfs:
+
+1. checks the set: a kernel update (with `boot/vmlinuz.new`) needs all five files,
+   and `rootfs.btrfs.new` must have kernel modules for the new kernel's version
+   (read from `vmlinuz.new`). Only `rootfs.btrfs.new` (same kernel) also works.
+   A set that fails a check is renamed to `*.rejected` and the current system boots;
+2. renames each part to `*.old` and its `*.new` into its place (parts without a
+   `.new` are copied to `.old`), so `*.old` is always the complete previous set;
+3. boots the new system: after a kernel update it reboots once by itself, straight
+   into the new kernel.
+
+* **Space:** only renames, so the card needs room for the copied set, not more.
 * **Log:** `rootfs-update.log` on the card (`/run/sdcard/rootfs-update.log`).
-* **Power loss during the update:** repaired at the next boot (the missing
-  `rootfs.btrfs` is taken from `.new`, or from `.old`).
-* **Back to the previous system:** the boot menu's "previous system" entry boots
-  `rootfs.btrfs.old` (kernel parameter `maglinux.rootfs=rootfs.btrfs.old`), without
-  changing any file; without a `.old` it boots the current system. To make it the
-  default again, rename the files (e.g. from the rescue system).
-* **A new kernel** (after `make refresh`) cannot be installed this way: write the whole
-  image to the card instead.
+* **Power loss during the update:** repaired at the next boot (a missing part is
+  taken from its `.new`, or from its `.old`).
+* **Back to the previous set:** the boot menu's "previous system" boots
+  `vmlinuz.old`, `initrd.img.old` and `rootfs.btrfs.old`; "rescue system, previous
+  kernel" boots the old rescue system. No file is changed. Until the first update
+  the `.old` kernel, initrd and rescue files are copies of the current ones, and the
+  previous system boots `rootfs.btrfs`. To make the old set the default again,
+  rename the files (e.g. from the rescue system).

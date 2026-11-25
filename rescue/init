@@ -25,6 +25,15 @@ for m in loop squashfs overlay fat vfat nls_cp437 nls_ascii nls_iso8859-1 \
     modprobe -q "$m" 2>/dev/null
 done
 
+# The squashfs to use: rescue/rescue.sqfs, or rescue/<file> given with
+# maglinux.rescue=<file> (the boot menu's "rescue system, previous kernel" entry:
+# maglinux.rescue=rescue.sqfs.old)
+SQFS=rescue.sqfs
+for arg in $(cat /proc/cmdline); do
+    case "$arg" in maglinux.rescue=*) SQFS=${arg#maglinux.rescue=} ;; esac
+done
+case "$SQFS" in */*|"") SQFS=rescue.sqfs ;; esac
+
 msg "searching for rescue/rescue.sqfs ..."
 found=""
 i=0
@@ -42,12 +51,16 @@ while [ $i -lt 30 ]; do
 done
 [ -n "$found" ] || panic "rescue/rescue.sqfs not found on any FAT partition"
 msg "found on $found"
+if [ ! -f "/mnt/rescue/$SQFS" ]; then
+    msg "rescue/$SQFS not found, using rescue/rescue.sqfs"
+    SQFS=rescue.sqfs
+fi
 # The SD card's FAT partition is writable in the rescue system (/media/sdcard):
 # searched read-only above, so a card without rescue.sqfs is never written to
 mount -o remount,rw /mnt || msg "cannot remount $found read-write, it stays read-only"
 
 mkdir -p /lower /rw /newroot
-mount -t squashfs -o loop,ro /mnt/rescue/rescue.sqfs /lower || panic "cannot mount rescue.sqfs"
+mount -t squashfs -o loop,ro "/mnt/rescue/$SQFS" /lower || panic "cannot mount rescue/$SQFS"
 mount -t tmpfs -o mode=755 tmpfs /rw
 mkdir -p /rw/upper /rw/work
 mount -t overlay overlay -o lowerdir=/lower,upperdir=/rw/upper,workdir=/rw/work /newroot \

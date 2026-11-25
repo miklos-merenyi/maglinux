@@ -77,6 +77,13 @@ sudo cp "$BTRFS_IMG" "$MNT/"
 # syslinux version).
 sudo mkdir -p "$MNT/rescue"
 sudo cp "$RESCUE_OUT/initramfs.gz" "$RESCUE_OUT/rescue.sqfs" "$MNT/rescue/"
+# The previous set (boot menu: "previous system", "rescue system, previous kernel"):
+# an update (mount-btrfs-loop) replaces these. Until the first one they are copies
+# of the current files; rootfs.btrfs.old is left out (2 GB): the previous system
+# then boots rootfs.btrfs.
+for f in boot/vmlinuz boot/initrd.img rescue/initramfs.gz rescue/rescue.sqfs; do
+    sudo cp "$MNT/$f" "$MNT/$f.old"
+done
 sudo cp /usr/lib/syslinux/modules/bios/menu.c32 /usr/lib/syslinux/modules/bios/libutil.c32 \
     "$MNT/boot/syslinux/"
 
@@ -93,14 +100,19 @@ LABEL linux
     APPEND initrd=/boot/initrd.img root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw
 
 LABEL previous
-    MENU LABEL $HOSTNAME_NEW, previous system (rootfs.btrfs.old, after an update)
-    KERNEL /boot/vmlinuz
-    APPEND initrd=/boot/initrd.img root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw maglinux.rootfs=rootfs.btrfs.old
+    MENU LABEL $HOSTNAME_NEW, previous system (the *.old files, from before the last update)
+    KERNEL /boot/vmlinuz.old
+    APPEND initrd=/boot/initrd.img.old root=/dev/loop0 rootfstype=btrfs rootflags=compress=zstd:3 rw maglinux.rootfs=rootfs.btrfs.old
 
 LABEL rescue
     MENU LABEL Rescue system (root autologin, SD card writable)
     KERNEL /boot/vmlinuz
     APPEND initrd=/rescue/initramfs.gz console=ttyS0,115200 console=tty0
+
+LABEL rescue-previous
+    MENU LABEL Rescue system, previous kernel (the *.old files)
+    KERNEL /boot/vmlinuz.old
+    APPEND initrd=/rescue/initramfs.gz.old console=ttyS0,115200 console=tty0 maglinux.rescue=rescue.sqfs.old
 EOF
 
 safe_umount "$MNT"

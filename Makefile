@@ -2,6 +2,8 @@
 #
 #   make              build build/sdcard-8g.img (default)
 #   make <stage>      build up to one stage: base rootfs btrfs rescue-base rescue image
+#   make update       build/update/: the update set for a device (copy its contents to
+#                     the card's root; applied at the next boot, see README)
 #   make refresh      re-run the Debian bootstraps on the next build (picks up new
 #                     package versions, e.g. security updates, without a config change)
 #   make run          build if needed, then boot the image in QEMU
@@ -51,7 +53,7 @@ RESCUE_SHARED := overlay/usr/local/sbin/maglinux-wireguard-import \
 	overlay/usr/local/sbin/maglinux-network \
 	overlay/etc/systemd/system/maglinux-network.service
 
-.PHONY: all base rootfs btrfs rescue-base rescue image refresh run clean distclean
+.PHONY: all base rootfs btrfs rescue-base rescue image update refresh run clean distclean
 all: image
 base: $(BASE)
 rootfs: $(ROOTFS)
@@ -85,6 +87,18 @@ $(RESCUE): $(RESCUE_BASE) $(BASE) config/rescue-settings.sh $(call tree,rescue) 
 $(IMAGE): $(BTRFS) $(RESCUE) $(ROOTFS) config/settings.sh $(call tree,sdcard) $(STEPS)/image.sh $(LIB)
 	$(STEPS)/image.sh
 
+# The update set, in the card's layout: kernel, initrd, rescue system and main system
+# of this build as *.new (scripts/local-top/mount-btrfs-loop applies them at boot)
+update: $(BTRFS) $(RESCUE) $(ROOTFS)
+	rm -rf $(B)/update
+	mkdir -p $(B)/update/boot $(B)/update/rescue
+	cp $(B)/rootfs/boot/vmlinuz-* $(B)/update/boot/vmlinuz.new
+	cp $(B)/rootfs/boot/initrd.img-* $(B)/update/boot/initrd.img.new
+	cp $(B)/rescue/initramfs.gz $(B)/update/rescue/initramfs.gz.new
+	cp $(B)/rescue/rescue.sqfs $(B)/update/rescue/rescue.sqfs.new
+	cp $(BTRFS) $(B)/update/rootfs.btrfs.new
+	@echo "Update set: $(B)/update/ (copy its contents to the root of the device's SD card)"
+
 refresh:
 	rm -f $(BASE) $(RESCUE_BASE)
 
@@ -93,7 +107,7 @@ run: $(IMAGE)
 
 clean:
 	sudo rm -rf --one-file-system $(B)/rootfs $(B)/rescue-root $(B)/rescue-initramfs $(B)/rescue \
-		$(B)/rootfs.btrfs $(B)/sdcard-8g.img $(B)/*.tmp $(ROOTFS) $(RESCUE)
+		$(B)/rootfs.btrfs $(B)/sdcard-8g.img $(B)/*.tmp $(B)/update $(ROOTFS) $(RESCUE)
 
 distclean:
 	sudo rm -rf --one-file-system $(B)
