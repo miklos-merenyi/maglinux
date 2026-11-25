@@ -1,11 +1,14 @@
 #!/bin/sh
 # Boot the SD card image in QEMU. VNC of the guest is forwarded to localhost:5901.
 # Extra arguments are passed to QEMU, e.g.:  scripts/run_qemu -snapshot
+# The screen is 1024x768: the emulated graphics card reports it as its preferred
+# mode (QEMU_RES=1280x800 scripts/run_qemu for another size).
 set -e
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 IMG="$REPO/build/sdcard-8g.img"
 
 [ -f "$IMG" ] || { echo "Image not found: $IMG (run make first)" >&2; exit 1; }
+RES="${QEMU_RES:-1024x768}"
 
 exec qemu-system-i386 \
     -enable-kvm \
@@ -14,4 +17,5 @@ exec qemu-system-i386 \
     -netdev user,id=net0,hostfwd=tcp::5901-:5901 \
     -device e1000,netdev=net0 \
     -cpu "pentium3,pae=off,pse36=off" \
+    -vga none -device VGA,xres="${RES%x*}",yres="${RES#*x}" \
     "$@"
