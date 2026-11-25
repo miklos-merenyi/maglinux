@@ -84,6 +84,27 @@ printf 'MAGLINUX_SDCARD_UID=%s\nMAGLINUX_SDCARD_GID=%s\n' \
     "$(sudo chroot "$R" id -g "$USER_NAME")" \
     | sudo tee "$R/etc/initramfs-tools/conf.d/maglinux-sdcard" >/dev/null
 
+# maglin's log directory, writable by the default user (maglin runs as that user):
+# maglin-start appends maglin's stdout/stderr to maglin.out and maglin-start/stop
+# write maglinux.log there (/opt/maglin/maglin.out and maglinux.log link here).
+# systemd-tmpfiles creates it at every boot; logrotate keeps the files small
+# (copytruncate: maglin keeps maglin.out open).
+echo "d /var/log/maglin 0755 $USER_NAME $USER_NAME -" \
+    | sudo tee "$R/etc/tmpfiles.d/maglinux-maglin-log.conf" >/dev/null
+sudo tee "$R/etc/logrotate.d/maglin" >/dev/null <<LOGROTATE
+/var/log/maglin/*.out /var/log/maglin/*.log {
+	su $USER_NAME $USER_NAME
+	weekly
+	maxsize 10M
+	rotate 4
+	compress
+	delaycompress
+	missingok
+	notifempty
+	copytruncate
+}
+LOGROTATE
+
 # Passwordless sudo for the default user (validated, a broken sudoers file fails the build)
 echo "$USER_NAME ALL=(ALL:ALL) NOPASSWD: ALL" | sudo tee "$R/etc/sudoers.d/$USER_NAME" >/dev/null
 sudo chmod 440 "$R/etc/sudoers.d/$USER_NAME"
