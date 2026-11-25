@@ -379,32 +379,46 @@ Copy all of it to the root of the device's card (from a PC, or over SSH to
 
 ---
 
-## 14. Hardware watchdog (Vortex86)
+## 14. Watchdog: reboot when maglin hangs, hardware reset when Linux hangs
 
-The Vortex86DX3 has an ALi M6117-compatible watchdog. Its driver `alim6117_wdt`
-(`third_party/alim6117_wdt/`, out-of-tree, built by the `kmod` stage) is loaded at boot
-by `maglinux-watchdog.service`, only on Vortex86 CPUs (elsewhere it is skipped), with a
-**timeout of 360 s** (`/etc/modprobe.d/alim6117_wdt.conf`).
+**`maglinux-watchdogd`** (root service) does two jobs:
 
-**`maglinux-watchdogd`** (root service) holds `/dev/watchdog` and feeds it for maglin:
-maglin (`watchdog=/run/maglin-wd.fifo` in `maglin.ini`) sends "start" when it starts,
-a feed once a second, and "stop" when it ends on purpose (closed, `maglin-stop`, the
-panel button, or a fatal error such as a configuration error): then the watchdog stops.
-If maglin hangs or crashes, the feeds stop:
+1. **maglin hangs or crashes → clean reboot.** maglin (`watchdog=/run/maglin-wd.fifo` in
+   `maglin.ini`) feeds the service once a second. Without feeds:
+   * after **240 s**: alarm to all terminals (`wall`: SSH sessions, console logins) and a
+     pop-up on the desktop; again after **300 s**;
+   * the pop-up's **Reset watchdog** (or `wd-reset` in a terminal) gives maglin another
+     360 s;
+   * after **360 s**: `systemctl reboot`, logged to the journal and to
+     `/var/log/maglin/maglinux.log`.
 
-* after **240 s**: alarm to all terminals (`wall`: SSH sessions, console logins) and a
-  pop-up on the desktop; again after **300 s** (thresholds: `/etc/default/maglinux-watchdog`);
-* the pop-up's **Reset watchdog** (or `maglinux-watchdog-reset` in a terminal) feeds it
-  once: another 360 s before the reset;
-* after **360 s** without a feed the hardware resets the machine.
+   maglin is not watched while it is not running or after it ended on purpose (closed,
+   `maglin-stop`, the panel button, a fatal error such as a configuration error).
+   Times: `/etc/default/maglinux-watchdog`.
+2. **Linux hangs or crashes → hardware reset.** The Vortex86DX3's ALi M6117-compatible
+   watchdog (driver `alim6117_wdt`, `third_party/alim6117_wdt/`, built by the `kmod`
+   stage, loaded by `maglinux-watchdog.service` on Vortex86 CPUs only) is fed by the
+   service every 2 s, from boot on. If Linux or the service stop, the hardware resets
+   the machine after **120 s** (`/etc/modprobe.d/alim6117_wdt.conf`). It also covers a
+   reboot: from its start nothing feeds it, so a hung shutdown is reset too; at the end
+   of a normal shutdown the driver stops it. Stopping the service by hand (`systemctl
+   stop`) stops the hardware watchdog too.
 
-The top panel's **WD** item shows the seconds since the last feed (green, orange from
-240 s, red from 300 s; "off" when stopped; nothing on machines without a watchdog). A
-click shows the status, with Reset watchdog.
+The top panel's **WD** item shows the seconds since maglin's last feed (green, orange
+from 240 s, red from 300 s), "idle" while maglin is not running, "disabled" (orange)
+when switched off by hand. A click shows the status, with Reset watchdog and Disable /
+Enable watchdog.
 
-* **Check:** `wdctl`; `journalctl -u maglinux-watchdogd`; `/run/maglin-watchdog/state`.
-* **Using the device directly instead** (no alarms, no reset button):
-  `watchdog=/dev/watchdog` and `watchdog_timeout=<seconds>` (1-511) in `maglin.ini`.
-* **Restarting `maglinux-watchdogd` while maglin runs** stops the watchdog, and maglin's
-  feeds no longer reach the new service ("WD off"): restart maglin afterwards.
-* Needs a maglin package that sends "stop" (maglin source from November 2026 on).
+* **Disable / enable** (the WD dialog, or `wd-stop` / `wd-start`): switches off both
+  jobs: no reboot when maglin hangs, no hardware watchdog. It stays disabled, also after
+  a reboot, until enabled again.
+* **Terminal commands:** `wd-query` (state, seconds since maglin's last feed, the
+  hardware watchdog; exit code 0 when on), `wd-reset`, `wd-stop`, `wd-start`; long form:
+  `maglinux-watchdog status|reset|disable|enable`.
+* **Check:** `wd-query`; `wdctl`; `journalctl -u maglinux-watchdogd`.
+* **Using the device directly from maglin instead** (no clean reboot, no alarms):
+  `watchdog=/dev/watchdog` and `watchdog_timeout=<seconds>` (1-511) in `maglin.ini`;
+  then disable the service's hardware watchdog (`wd-stop`), only one can use it.
+* **Restarting `maglinux-watchdogd` while maglin runs:** maglin's feeds no longer reach
+  the new service ("WD idle"); restart maglin afterwards.
+* Needs a maglin package that sends "stop" when it ends on purpose.

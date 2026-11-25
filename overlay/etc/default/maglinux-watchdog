@@ -1,5 +1,7 @@
-# maglinux watchdog alarms (maglinux-watchdogd, the panel and the pop-ups): seconds
-# without a feed from maglin after which the first and the second alarm is given.
-# The reset itself comes at the driver's timeout (/etc/modprobe.d/alim6117_wdt.conf).
+# maglinux watchdog (maglinux-watchdogd, the panel, the pop-ups): seconds without a feed
+# from maglin after which the first and the second alarm is given, and after which the
+# machine is rebooted (systemctl reboot). The hardware watchdog, which resets the
+# machine if Linux itself stops: /etc/modprobe.d/alim6117_wdt.conf.
 WARN1=240
 WARN2=300
+REBOOT=360

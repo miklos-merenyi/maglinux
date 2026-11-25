@@ -1,69 +1,113 @@
 #!/bin/bash
-# maglinux-watchdogd - feeds the hardware watchdog (/dev/watchdog) on behalf of maglin
-# and watches it (run by maglinux-watchdogd.service, as root).
+# maglinux-watchdogd - watches maglin, and keeps the hardware watchdog for Linux
+# (run by maglinux-watchdogd.service, as root).
 #
-# maglin (watchdog=/run/maglin-wd.fifo in maglin.ini) writes commands to the FIFO:
-#   S      start: open /dev/watchdog (its timeout: /etc/modprobe.d/alim6117_wdt.conf)
-#   R      feed (maglin: once a second)
-#   Q      stop: maglin ends on purpose (magic close, no reset)
-#   RESET  feed once, asked for by a person (maglinux-watchdog-reset, the alarm pop-up)
-# If maglin hangs or crashes, the feeds stop: alarms to all terminals (wall) after
-# WARN1 and WARN2 seconds (/etc/default/maglinux-watchdog), and at the timeout the
-# hardware resets the machine.
+# Two jobs:
+# * maglin hangs or crashes: a clean reboot. maglin (watchdog=/run/maglin-wd.fifo in
+#   maglin.ini) feeds this service once a second. Without feeds: alarms to all
+#   terminals (wall) after WARN1 and WARN2 seconds, then after REBOOT seconds
+#   "systemctl reboot" (/etc/default/maglinux-watchdog). Not when maglin ended on
+#   purpose (it sends "stop").
+# * Linux hangs or crashes: a hardware reset. This service feeds /dev/watchdog itself
+#   every 2 s, from boot on; if Linux or this service stop, the hardware resets the
+#   machine after its timeout (/etc/modprobe.d/alim6117_wdt.conf). It also covers
+#   the clean reboot: from its start no more feeds, so a hung shutdown is reset too
+#   (at the end of a normal shutdown the driver stops the watchdog).
 #
-# State for the panel and the pop-ups, in /run/maglin-watchdog/state:
-#   state=active|off|nodevice  last=<uptime s of the last feed>  timeout=<s>
+# Commands on the FIFO:
+#   S / R  maglin started / feed          Q  maglin ends on purpose: not watched any more
+#   RESET  a person gives maglin another REBOOT seconds (wd-reset, the alarm pop-up)
+#   DISABLE / ENABLE  switch both jobs off / on (wd-stop / wd-start, the panel's WD
+#          dialog); "disabled" is kept across reboots
+#
+# State for the panel, the pop-ups and wd-query, in /run/maglin-watchdog/state:
+#   state=watching|idle|disabled|rebooting  hw=on|off|none  last=<uptime s of maglin's
+#   last feed>  reboot=<REBOOT>  hwtimeout=<s>
 FIFO=/run/maglin-wd.fifo
 DIR=/run/maglin-watchdog
 DEV=/dev/watchdog
-WARN1=240 WARN2=300
+DISABLED=/var/lib/maglinux/watchdog-disabled   # exists while disabled by hand
+MAGLIN_LOG=/var/log/maglin/maglinux.log
+WARN1=240 WARN2=300 REBOOT=360
 [ -r /etc/default/maglinux-watchdog ] && . /etc/default/maglinux-watchdog
 
 uptime_s() { local u _; read -r u _ < /proc/uptime; echo "${u%.*}"; }
-log() { echo "maglinux-watchdogd: $*"; }
-timeout_s() { cat /sys/class/watchdog/watchdog0/timeout 2>/dev/null || echo 0; }
-state=off last=0 warned=0 active=0
+log() {
+    echo "maglinux-watchdogd: $*"
+    [ -d "${MAGLIN_LOG%/*}" ] &&
+        echo "$(LC_ALL=C date '+%b %e %H:%M:%S') $(uname -n) maglinux-watchdogd: $*" >> "$MAGLIN_LOG"
+}
+# The hardware timeout, read when the device is opened (sysfs may be gone at shutdown)
+HWT=0
+hwtimeout() { [ "$HWT" -gt 0 ] && echo "$HWT" || cat /sys/class/watchdog/watchdog0/timeout 2>/dev/null || echo 0; }
+disabled() { [ -e "$DISABLED" ]; }
+
+hw=off maglin=0 last=0 warned=0 rebooting=0
 write_state() {
-    printf 'state=%s\nlast=%s\ntimeout=%s\n' "$state" "$last" "$(timeout_s)" > "$DIR/state.tmp" &&
+    local state
+    if [ "$rebooting" = 1 ]; then state=rebooting
+    elif disabled; then state=disabled
+    elif [ "$maglin" = 1 ]; then state=watching
+    else state=idle; fi
+    printf 'state=%s\nhw=%s\nlast=%s\nreboot=%s\nhwtimeout=%s\n' \
+        "$state" "$hw" "$last" "$REBOOT" "$(hwtimeout)" > "$DIR/state.tmp" &&
         mv "$DIR/state.tmp" "$DIR/state"
 }
-
-feed() {
-    [ "$active" = 1 ] || return 0
-    printf 1 >&3
-    last=$(uptime_s) warned=0
-    state=active
-}
-start() {
-    if [ "$active" = 0 ]; then
-        # Only a real device: as root, "exec 3>" would create an ordinary file
-        if [ ! -c "$DEV" ] || ! exec 3>"$DEV"; then
-            log "cannot open $DEV (no watchdog driver?)"
-            state=nodevice; write_state; return
-        fi
-        active=1
-        log "watchdog started for maglin, timeout $(timeout_s) s"
+hw_open() {
+    [ "$hw" = on ] && return
+    # Only a real device: as root, "exec 3>" would create an ordinary file
+    if [ -c "$DEV" ] && exec 3>"$DEV"; then
+        hw=on
+        HWT=$(cat /sys/class/watchdog/watchdog0/timeout 2>/dev/null || echo 0)
+        log "hardware watchdog on (timeout $(hwtimeout) s: reset if Linux stops)"
+    else
+        hw=none
     fi
-    feed; write_state
 }
-stop() {
-    if [ "$active" = 1 ]; then
-        printf V >&3          # magic close: the timer stops, no reset
-        exec 3>&-
-        active=0
-        log "watchdog stopped (maglin ended on purpose)"
-    fi
-    state=off; write_state
+hw_close() {  # hw_close stop|keep: stop the timer (magic close), or leave it running
+    [ "$hw" = on ] || return
+    [ "$1" = stop ] && printf V >&3
+    exec 3>&-
+    hw=off
+    if [ "$1" = stop ]; then log "hardware watchdog off"
+    else log "hardware watchdog left running (reset after $(hwtimeout) s unless the reboot completes)"; fi
 }
-alarm() {  # alarm <seconds since the last feed>
-    local t left
-    t=$(timeout_s); left=$(( t - $1 ))
+feed_maglin() { last=$(uptime_s) warned=0; }
+alarm() {  # alarm <seconds since maglin's last feed>
+    local left=$(( REBOOT - $1 ))
     wall <<MSG
 WATCHDOG ALARM on $(hostname): maglin has not fed the watchdog for $1 s.
-This machine will be RESET in about $left s (timeout $t s), unless maglin
-recovers. To give it another $t s: maglinux-watchdog-reset
+This machine will be REBOOTED in about $left s, unless maglin recovers.
+To give maglin another $REBOOT s: wd-reset
 MSG
-    log "alarm: no feed for $1 s, reset in about $left s"
+    log "alarm: maglin has not fed the watchdog for $1 s, reboot in about $left s"
+}
+reboot_now() {  # reboot_now <seconds since maglin's last feed>
+    rebooting=1
+    write_state
+    log "maglin has not fed the watchdog for $1 s: REBOOTING (systemctl reboot)"
+    wall <<MSG
+WATCHDOG on $(hostname): maglin has not fed the watchdog for $1 s.
+REBOOTING NOW.
+MSG
+    # No more hardware feeds from here: if the reboot does not complete, the hardware
+    # resets the machine after its timeout
+    systemctl reboot --no-block || log "systemctl reboot failed: the hardware watchdog resets the machine"
+}
+shutting_down() {
+    [ "$rebooting" = 1 ] && return 0
+    [ "$(systemctl is-system-running 2>/dev/null)" = stopping ] && return 0
+    systemctl list-jobs --no-legend 2>/dev/null |
+        grep -qE '(reboot|poweroff|halt|kexec|shutdown)\.target'
+}
+on_term() {
+    # Shutting down (e.g. the reboot above): leave the hardware timer running, so a hung
+    # shutdown is reset too (systemd takes over at its end: RebootWatchdogSec in
+    # /etc/systemd/system.conf.d/). Stopped by hand (systemctl stop/restart): stop it.
+    if shutting_down; then hw_close keep
+    else hw_close stop; fi
+    rm -f "$FIFO"
+    exit 0
 }
 
 mkdir -p "$DIR"
@@ -71,24 +115,34 @@ rm -f "$FIFO"
 mkfifo -m 0620 "$FIFO"
 chgrp watchdog "$FIFO"
 exec 4<>"$FIFO"       # read and write: no end of file when a writer closes
+disabled || hw_open
 write_state
-log "listening on $FIFO"
-trap 'stop; rm -f "$FIFO"; exit 0' TERM INT
+log "listening on $FIFO (reboot after $REBOOT s without maglin's feeds; alarms at $WARN1 and $WARN2 s)"
+trap on_term TERM INT
 
 while :; do
     if read -r -t 2 cmd <&4; then
         case "$cmd" in
-            S) start ;;
-            R) feed ;;
-            Q) stop ;;
-            RESET) if [ "$active" = 1 ]; then feed; log "watchdog reset by hand"; fi ;;
+            S) maglin=1; feed_maglin; log "maglin started: watched" ;;
+            R) maglin=1; feed_maglin ;;
+            Q) maglin=0; log "maglin ended on purpose: not watched" ;;
+            RESET) if [ "$maglin" = 1 ]; then feed_maglin; log "watchdog reset by hand: maglin gets another $REBOOT s"; fi ;;
+            DISABLE)
+                mkdir -p "${DISABLED%/*}"; touch "$DISABLED"
+                log "watchdog DISABLED by hand (no reboot, no hardware watchdog)"; hw_close stop ;;
+            ENABLE)
+                rm -f "$DISABLED"; feed_maglin; log "watchdog enabled by hand"; hw_open ;;
         esac
     fi
-    if [ "$active" = 1 ]; then
-        age=$(( $(uptime_s) - last ))
-        if [ "$age" -ge "$WARN2" ] && [ "$warned" -lt 2 ]; then warned=2; alarm "$age"
-        elif [ "$age" -ge "$WARN1" ] && [ "$warned" -lt 1 ]; then warned=1; alarm "$age"
+    if [ "$rebooting" = 0 ]; then
+        [ "$hw" = on ] && printf 1 >&3          # Linux and this service are alive
+        if [ "$maglin" = 1 ] && ! disabled; then
+            age=$(( $(uptime_s) - last ))
+            if [ "$age" -ge "$REBOOT" ]; then reboot_now "$age"
+            elif [ "$age" -ge "$WARN2" ] && [ "$warned" -lt 2 ]; then warned=2; alarm "$age"
+            elif [ "$age" -ge "$WARN1" ] && [ "$warned" -lt 1 ]; then warned=1; alarm "$age"
+            fi
         fi
-        write_state
     fi
+    write_state
 done

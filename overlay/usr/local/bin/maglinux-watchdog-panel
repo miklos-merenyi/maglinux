@@ -1,25 +1,34 @@
 #!/bin/sh
 # Watchdog item in the top panel (xfce4-genmon-plugin, ~/.config/xfce4/panel/genmon-26.rc):
 # seconds since maglin last fed the watchdog (maglinux-watchdogd), green / orange from
-# WARN1 / red from WARN2; "WD off" when stopped; nothing without a watchdog.
-# A click opens maglinux-watchdog-dialog (status, reset).
+# WARN1 / red from WARN2; "idle" while maglin is not running, "disabled" (orange) when
+# switched off by hand; nothing without the service. A click: maglinux-watchdog-dialog.
 WARN1=240 WARN2=300
 [ -r /etc/default/maglinux-watchdog ] && . /etc/default/maglinux-watchdog
 state=
 . /run/maglin-watchdog/state 2>/dev/null
+case "$hw" in
+    on)   hwtxt="The hardware watchdog resets the machine ${hwtimeout} s after Linux stops." ;;
+    none) hwtxt="No hardware watchdog on this machine." ;;
+    *)    hwtxt="The hardware watchdog is off." ;;
+esac
 case "$state" in
-    active)
+    watching)
         read -r up _ < /proc/uptime; age=$(( ${up%.*} - last ))
         if   [ "$age" -ge "$WARN2" ]; then c="#e01b24"
         elif [ "$age" -ge "$WARN1" ]; then c="#e66100"
         else c="#26a269"; fi
         echo "<txt> WD <span foreground=\"$c\"><b>${age} s</b></span> </txt>"
-        echo "<tool>Watchdog active: maglin fed it ${age} s ago. The machine is reset after ${timeout} s without a feed (alarms at ${WARN1} and ${WARN2} s). Click for details or to reset it.</tool>"
-        ;;
-    off)
-        echo '<txt> WD <span foreground="#9a9996">off</span> </txt>'
-        echo '<tool>Watchdog stopped (maglin is not running, or ended on purpose).</tool>'
-        ;;
-    *)  echo '<txt></txt>'; exit 0 ;;   # no watchdog (service or driver): show nothing
+        echo "<tool>Watchdog: maglin fed it ${age} s ago. Without a feed the machine is rebooted after ${reboot} s (alarms at ${WARN1} and ${WARN2} s). $hwtxt Click for details.</tool>" ;;
+    idle)
+        echo '<txt> WD <span foreground="#9a9996">idle</span> </txt>'
+        echo "<tool>Watchdog: maglin is not running, so it is not watched. $hwtxt Click for details.</tool>" ;;
+    disabled)
+        echo '<txt> WD <span foreground="#e66100"><b>disabled</b></span> </txt>'
+        echo '<tool>Watchdog DISABLED by hand: no reboot when maglin hangs, no hardware watchdog. Click to enable it.</tool>' ;;
+    rebooting)
+        echo '<txt> WD <span foreground="#e01b24"><b>rebooting</b></span> </txt>'
+        echo '<tool>maglin stopped feeding the watchdog: the machine is being rebooted.</tool>' ;;
+    *)  echo '<txt></txt>'; exit 0 ;;
 esac
 echo '<txtclick>/usr/local/bin/maglinux-watchdog-dialog</txtclick>'

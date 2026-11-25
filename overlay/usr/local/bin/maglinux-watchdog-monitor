@@ -1,6 +1,7 @@
 #!/bin/sh
 # maglinux-watchdog-monitor - started with the desktop session (autostart): when maglin
-# has not fed the watchdog for WARN1 and again for WARN2 seconds
+# has not fed the watchdog for WARN1 and again for WARN2 seconds (the machine is
+# rebooted after REBOOT seconds)
 # (/etc/default/maglinux-watchdog), opens the alarm pop-up (maglinux-watchdog-dialog
 # alarm, with "Reset watchdog"). maglinux-watchdogd warns the terminals (wall).
 WARN1=240 WARN2=300
@@ -9,7 +10,7 @@ level=0 popup=
 while sleep 5; do
     state=
     . /run/maglin-watchdog/state 2>/dev/null
-    [ "$state" = active ] || { level=0; continue; }
+    [ "$state" = watching ] || { level=0; continue; }
     read -r up _ < /proc/uptime; age=$(( ${up%.*} - last ))
     if [ "$age" -lt "$WARN1" ]; then level=0; continue; fi
     want=1; [ "$age" -ge "$WARN2" ] && want=2

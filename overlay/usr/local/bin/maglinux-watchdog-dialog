@@ -1,28 +1,64 @@
 #!/bin/sh
-# maglinux-watchdog-dialog [alarm] - watchdog status with a "Reset watchdog" button
-# (the panel's WD item, and the alarm pop-ups of maglinux-watchdog-monitor).
+# maglinux-watchdog-dialog [alarm] - watchdog status with "Reset watchdog" and
+# "Disable watchdog" / "Enable watchdog" (the panel's WD item; with "alarm": the alarm
+# pop-ups of maglinux-watchdog-monitor).
 TITLE="Watchdog"
+refresh() { xfce4-panel --plugin-event=genmon-26:refresh:bool:true 2>/dev/null || true; }
+result() {  # result <message> <exit code>
+    if [ "$2" = 0 ]; then zenity --info --title="$TITLE" --text="$1"
+    else zenity --error --title="$TITLE" --text="$1"; fi
+}
+disable() {
+    zenity --question --title="$TITLE" --icon-name=dialog-warning --width=420 \
+        --text="Disable the watchdog?\n\nA hung maglin will then <b>not</b> reboot the machine, and the\nhardware watchdog no longer resets it if Linux hangs.\nIt stays disabled, also after a reboot, until it is enabled again\n(here, or in a terminal: wd-start)." \
+        --ok-label="Disable watchdog" --cancel-label="Keep it enabled" || return 0
+    msg=$(/usr/local/bin/maglinux-watchdog disable 2>&1); result "$msg" 0
+    refresh
+}
 state=
 . /run/maglin-watchdog/state 2>/dev/null
-if [ "$state" != active ]; then
-    zenity --info --title="$TITLE" --text="The watchdog is <b>${state:-not available}</b>."
-    exit 0
-fi
-read -r up _ < /proc/uptime; age=$(( ${up%.*} - last )); left=$(( timeout - age ))
+case "$hw" in
+    on)   hwtxt="The hardware watchdog resets the machine ${hwtimeout} s after Linux stops." ;;
+    none) hwtxt="This machine has no hardware watchdog." ;;
+    *)    hwtxt="The hardware watchdog is off." ;;
+esac
+case "$state" in
+    watching) ;;
+    disabled)
+        if zenity --question --title="$TITLE" --icon-name=dialog-warning --width=420 \
+                --text="The watchdog is <b>DISABLED</b>: a hung maglin does not reboot the\nmachine, and there is no hardware watchdog for Linux." \
+                --ok-label="Enable watchdog" --cancel-label="Close"; then
+            msg=$(/usr/local/bin/maglinux-watchdog enable 2>&1); result "$msg" 0
+            refresh
+        fi
+        exit 0 ;;
+    idle)
+        if zenity --question --title="$TITLE" --width=420 \
+                --text="maglin is not running, so it is not watched (it is when it starts).\n$hwtxt" \
+                --ok-label="Close" --cancel-label="Disable watchdog"; then exit 0; fi
+        disable; exit 0 ;;
+    rebooting)
+        zenity --info --title="$TITLE" --text="maglin stopped feeding the watchdog: the machine is being rebooted."
+        exit 0 ;;
+    *)  zenity --info --title="$TITLE" --text="The watchdog is not available (${state:-no service})."
+        exit 0 ;;
+esac
+
+read -r up _ < /proc/uptime; age=$(( ${up%.*} - last )); left=$(( reboot - age ))
 if [ "${1:-}" = alarm ]; then
-    head="<b>WATCHDOG ALARM</b>\n\nmaglin has not fed the watchdog for <b>${age} s</b>: it may be hung.\nThis machine will be <b>RESET in about ${left} s</b> (timeout ${timeout} s)."
+    head="<b>WATCHDOG ALARM</b>\n\nmaglin has not fed the watchdog for <b>${age} s</b>: it may be hung.\nThis machine will be <b>REBOOTED in about ${left} s</b>."
     icon=dialog-warning
 else
-    head="The watchdog is active. maglin fed it ${age} s ago.\nWithout a feed the machine is reset after ${timeout} s (in about ${left} s now)."
+    head="The watchdog watches maglin: it fed it ${age} s ago.\nWithout a feed the machine is rebooted after ${reboot} s (in about ${left} s now).\n$hwtxt"
     icon=dialog-information
 fi
-if zenity --question --title="$TITLE" --icon-name="$icon" --width=420 \
-        --text="$head\n\n<i>Reset watchdog</i> gives maglin another ${timeout} s." \
-        --ok-label="Reset watchdog" --cancel-label="Close"; then
-    if msg=$(/usr/local/bin/maglinux-watchdog-reset 2>&1); then
-        zenity --info --title="$TITLE" --text="$msg"
-    else
-        zenity --error --title="$TITLE" --text="$msg"
-    fi
-    xfce4-panel --plugin-event=genmon-26:refresh:bool:true 2>/dev/null || true
+choice=$(zenity --question --title="$TITLE" --icon-name="$icon" --width=440 \
+    --text="$head\n\n<i>Reset watchdog</i> gives maglin another ${reboot} s." \
+    --ok-label="Reset watchdog" --cancel-label="Close" --extra-button="Disable watchdog")
+rc=$?
+if [ "$rc" = 0 ]; then
+    msg=$(/usr/local/bin/maglinux-watchdog-reset 2>&1); result "$msg" $?
+    refresh
+elif [ "$choice" = "Disable watchdog" ]; then
+    disable
 fi

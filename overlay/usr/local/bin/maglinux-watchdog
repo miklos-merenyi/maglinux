@@ -1,0 +1,46 @@
+#!/bin/sh
+# maglinux-watchdog status|reset|disable|enable - the watchdog (maglinux-watchdogd)
+#   status   watching / idle / disabled / rebooting, seconds since maglin's last feed,
+#            and the hardware watchdog
+#   reset    give maglin another full time before the clean reboot
+#   disable  switch it off: no reboot when maglin hangs, no hardware watchdog for
+#            Linux; kept across reboots until "enable"
+#   enable   switch it on again
+# Short names (symlinks to this script): wd-query = status, wd-reset = reset,
+# wd-stop = disable, wd-start = enable. "status" exits with 0 when the watchdog is
+# on (watching or idle), 1 otherwise. For the watchdog group (maguser).
+FIFO=/run/maglin-wd.fifo
+case "${0##*/}" in
+    wd-query) set -- status ;;
+    wd-reset) set -- reset ;;
+    wd-stop)  set -- disable ;;
+    wd-start) set -- enable ;;
+esac
+state=
+. /run/maglin-watchdog/state 2>/dev/null
+send() { [ -p "$FIFO" ] || { echo "No watchdog service ($FIFO)." >&2; exit 1; }; echo "$1" > "$FIFO"; }
+hwinfo() {
+    case "$hw" in
+        on)   echo "hardware watchdog on (reset ${hwtimeout} s after Linux stops)" ;;
+        none) echo "no hardware watchdog on this machine" ;;
+        *)    echo "hardware watchdog off" ;;
+    esac
+}
+case "${1:-status}" in
+    status)
+        case "$state" in
+            watching) read -r up _ < /proc/uptime
+                      echo "watching maglin: last feed $(( ${up%.*} - last )) s ago, reboot after ${reboot} s without one; $(hwinfo)"
+                      exit 0 ;;
+            idle)     echo "idle: maglin is not running (not watched); $(hwinfo)"
+                      exit 0 ;;
+            rebooting) echo "REBOOTING: maglin stopped feeding the watchdog" ;;
+            disabled) echo "DISABLED by hand: no reboot when maglin hangs, no hardware watchdog (wd-start)" ;;
+            *)        echo "not available (${state:-no service})" ;;
+        esac
+        exit 1 ;;
+    reset)   exec /usr/local/bin/maglinux-watchdog-reset ;;
+    disable) send DISABLE; sleep 1; /usr/local/bin/maglinux-watchdog status; exit 0 ;;
+    enable)  send ENABLE;  sleep 1; /usr/local/bin/maglinux-watchdog status; exit 0 ;;
+    *) echo "usage: maglinux-watchdog status|reset|disable|enable (or wd-query, wd-reset, wd-stop, wd-start)" >&2; exit 2 ;;
+esac
